@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cmd /c \"dir /a D:\\\\Projects\\\\graphi\")",
+      "Bash(npm create *)"
+    ]
+  }
+}
