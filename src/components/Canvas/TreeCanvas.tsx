@@ -9,6 +9,7 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
+  foldedCountMap: Map<string, number>;
   onNodeClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
@@ -61,7 +62,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -259,7 +260,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('x', NODE_W - 26).attr('y', 4)
         .attr('width', 22).attr('height', NODE_H - 8)
         .attr('rx', 5)
-        .attr('fill', 'rgba(255,255,255,0.85)');
+        .attr('fill', ns.fill);
 
       dotMenu.append('text')
         .attr('x', NODE_W - 15).attr('y', NODE_H / 2)
@@ -327,6 +328,34 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         onNodeMenuClick(nodeData, overlayX, overlayY, nodeScreenX, nodeScreenY, scaledW, scaledH);
       });
 
+      // Fold badge — blue pill in bottom-right corner
+      const foldCount = foldedCountMap.get(nodeData.id);
+      if (foldCount !== undefined) {
+        const label = String(foldCount);
+        const badgeH = 26;
+        const badgeW = Math.max(26, label.length * 10 + 14);
+        // Center exactly at the bottom-right corner of the node box
+        const badgeX = initW;
+        const badgeY = NODE_H - 2;
+
+        g.append('rect')
+          .attr('class', 'fold-badge-bg')
+          .attr('x', badgeX - badgeW / 2).attr('y', badgeY - badgeH / 2)
+          .attr('width', badgeW).attr('height', badgeH)
+          .attr('rx', badgeH / 2)
+          .attr('fill', '#2563EB')
+          .attr('pointer-events', 'none');
+
+        g.append('text')
+          .attr('class', 'fold-badge-text')
+          .attr('x', badgeX).attr('y', badgeY)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+          .attr('font-size', '12px').attr('font-weight', '600')
+          .attr('fill', '#fff').attr('pointer-events', 'none')
+          .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+          .text(label);
+      }
+
       // Main node body: single vs double click
       let clickTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -347,7 +376,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     });
 
     return () => { timers.forEach(t => clearTimeout(t)); };
-  }, [nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick, getNodeStyle, getEdgeStyle]);
+  }, [nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeDoubleClick, onNodeMenuClick, getNodeStyle, getEdgeStyle]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%' }}>

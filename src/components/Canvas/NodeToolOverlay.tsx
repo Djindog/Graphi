@@ -11,6 +11,9 @@ interface Props {
   position: { x: number; y: number };
   rootNodeId: string | null;
   projects: Project[];
+  isFolded: boolean;
+  onFold: () => void;
+  onUnfold: () => void;
   onClose: () => void;
   onBranch: (newNode: Node) => void;
   onDangerHover: (ids: string[]) => void;
@@ -50,12 +53,25 @@ const PruneIcon = () => (
 
 const TransplantIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
-    <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+    <polyline points="9 18 15 12 9 6" /><path d="M15 12H3" /><path d="M19 4v16" />
   </svg>
 );
 
-export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
+const FoldIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+    <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+);
+
+const UnfoldIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="5 15 5 19 9 19" /><polyline points="19 9 19 5 15 5" />
+    <line x1="5" y1="19" x2="11" y2="13" /><line x1="13" y1="11" x2="19" y2="5" />
+  </svg>
+);
+
+export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
   const { addNode, deleteNode, getDescendants, getAllAncestors, nodes } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
@@ -193,6 +209,10 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
         <>
           <Btn icon={<ForkIcon />} onClick={branch}>Branch</Btn>
           <Btn icon={<RenameIcon />} onClick={() => onRenameRequest(node)}>Rename</Btn>
+          {isFolded
+            ? <Btn icon={<UnfoldIcon />} onClick={onUnfold}>Unfold</Btn>
+            : <Btn icon={<FoldIcon />} onClick={onFold} disabled={isRoot}>Fold</Btn>
+          }
           <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
           <Btn icon={<CutIcon />} onClick={cut} disabled={isRoot} danger
             onMouseEnter={() => onDangerHover([node.id])}

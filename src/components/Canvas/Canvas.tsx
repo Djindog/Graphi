@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useGraphStore } from '../../stores/graphStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
+import { useFoldStore } from '../../stores/foldStore';
 import { TreeCanvas } from './TreeCanvas';
 import { ForceCanvas } from './ForceCanvas';
 import { NodeToolOverlay } from './NodeToolOverlay';
@@ -27,7 +28,8 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const { graphMode, setGraphMode } = useGraphStore();
   const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, clearContext, initContext } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
-  const { getAllAncestors, renameNode } = useDagStore();
+  const { getAllAncestors, renameNode, getDescendants } = useDagStore();
+  const { foldedNodeIds, fold, unfold } = useFoldStore();
   const [overlay, setOverlay] = useState<{ node: Node; x: number; y: number; nodeScreenX: number; nodeScreenY: number; nodeWidth: number; nodeHeight: number } | null>(null);
   const [dangerNodeIds, setDangerNodeIds] = useState<string[]>([]);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
@@ -35,6 +37,21 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const lineageNodeIds = activeNodeId ? getAllAncestors(activeNodeId).map(n => n.id) : [];
+
+  // IDs that are hidden because an ancestor is folded
+  const hiddenNodeIds = new Set<string>();
+  foldedNodeIds.forEach(foldedId => {
+    getDescendants(foldedId).forEach(n => hiddenNodeIds.add(n.id));
+  });
+  const visibleNodes = nodes.filter(n => !hiddenNodeIds.has(n.id));
+
+  // Map from folded node id → count of its entire subtree (descendants only)
+  const foldedCountMap = new Map<string, number>();
+  foldedNodeIds.forEach(id => {
+    if (nodes.some(n => n.id === id)) {
+      foldedCountMap.set(id, getDescendants(id).length);
+    }
+  });
 
   useEffect(() => {
     if (renameTarget) {
@@ -128,24 +145,26 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         </div>
       ) : graphMode === 'tree' ? (
         <TreeCanvas
-          nodes={nodes}
+          nodes={visibleNodes}
           activeNodeId={activeNodeId}
           activeContextNodeIds={activeContextNodeIds}
           deactivatedNodeIds={deactivatedNodeIds}
           lineageNodeIds={lineageNodeIds}
           dangerNodeIds={dangerNodeIds}
+          foldedCountMap={foldedCountMap}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
         />
       ) : (
         <ForceCanvas
-          nodes={nodes}
+          nodes={visibleNodes}
           activeNodeId={activeNodeId}
           activeContextNodeIds={activeContextNodeIds}
           deactivatedNodeIds={deactivatedNodeIds}
           lineageNodeIds={lineageNodeIds}
           dangerNodeIds={dangerNodeIds}
+          foldedCountMap={foldedCountMap}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
@@ -158,6 +177,9 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           position={{ x: overlay.x, y: overlay.y }}
           rootNodeId={rootNodeId}
           projects={projects}
+          isFolded={foldedNodeIds.has(overlay.node.id)}
+          onFold={() => { fold(overlay.node.id); setOverlay(null); setDangerNodeIds([]); }}
+          onUnfold={() => { unfold(overlay.node.id); setOverlay(null); setDangerNodeIds([]); }}
           onClose={() => { setOverlay(null); setDangerNodeIds([]); }}
           onBranch={() => { setOverlay(null); setDangerNodeIds([]); }}
           onDangerHover={setDangerNodeIds}
