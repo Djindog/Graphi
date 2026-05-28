@@ -133,7 +133,6 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
           deactivatedNodeIds={deactivatedNodeIds}
           lineageNodeIds={lineageNodeIds}
           dangerNodeIds={dangerNodeIds}
-          renamingNodeId={renameTarget?.id ?? null}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
@@ -146,7 +145,6 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
           deactivatedNodeIds={deactivatedNodeIds}
           lineageNodeIds={lineageNodeIds}
           dangerNodeIds={dangerNodeIds}
-          renamingNodeId={renameTarget?.id ?? null}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}

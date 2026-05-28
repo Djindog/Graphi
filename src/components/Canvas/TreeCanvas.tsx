@@ -9,7 +9,6 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
-  renamingNodeId: string | null;
   onNodeClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
@@ -37,7 +36,7 @@ function expandedWidth(title: string | null): number {
   return Math.min(Math.max(NODE_W, needed), MAX_W);
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, renamingNodeId, onNodeClick, onNodeDoubleClick, onNodeMenuClick, onRenameRequest }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 

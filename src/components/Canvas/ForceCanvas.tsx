@@ -9,7 +9,6 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
-  renamingNodeId: string | null;
   onNodeClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
