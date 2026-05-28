@@ -1,14 +1,16 @@
 import Groq from 'groq-sdk';
 import type { Node } from '../types';
 
-export const groqClient = new Groq({
-  apiKey: import.meta.env.VITE_GROQ_API_KEY as string,
-  dangerouslyAllowBrowser: true,
-});
+export function makeGroqClient(apiKey: string) {
+  return new Groq({ apiKey, dangerouslyAllowBrowser: true });
+}
 
-export async function generateTitle(userMessage: string, assistantResponse: string): Promise<string> {
+// Fallback singleton used only during dev with env key (no-op in prod when key comes from DB)
+export const groqClient = makeGroqClient(import.meta.env.VITE_GROQ_API_KEY as string ?? '');
+
+export async function generateTitle(userMessage: string, assistantResponse: string, client = groqClient): Promise<string> {
   try {
-    const response = await groqClient.chat.completions.create({
+    const response = await client.chat.completions.create({
       model: 'llama-3.1-8b-instant',
       temperature: 0,
       messages: [
@@ -34,13 +36,13 @@ export async function generateTitle(userMessage: string, assistantResponse: stri
   }
 }
 
-export async function detectReferences(message: string, nodes: Node[]): Promise<string[]> {
+export async function detectReferences(message: string, nodes: Node[], client = groqClient): Promise<string[]> {
   if (!nodes.length || !message.trim()) return [];
   const nodeList = nodes
     .map(n => `${n.id}: "${n.title || n.content?.substring(0, 40) || 'untitled'}"`)
     .join('\n');
   try {
-    const response = await groqClient.chat.completions.create({
+    const response = await client.chat.completions.create({
       model: 'llama-3.1-8b-instant',
       messages: [
         {

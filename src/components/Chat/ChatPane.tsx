@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
-import { groqClient, detectReferences, generateTitle } from '../../lib/groq';
+import { detectReferences, generateTitle } from '../../lib/groq';
 import { embedText } from '../../lib/jina';
 import { supabase } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,10 +10,11 @@ import { SwipeContainer } from './SwipeContainer';
 import { ChatInput } from './ChatInput';
 import { ContextSummary } from './ContextSummary';
 import type { Message } from '../../types';
+import type Groq from 'groq-sdk';
 
 const DEBOUNCE_MS = 500;
 
-export function ChatPane({ width = 320 }: { width?: number }) {
+export function ChatPane({ width = 320, groqClient }: { width?: number; groqClient: InstanceType<typeof Groq> | null }) {
   const {
     currentNodeId, messages, currentInput,
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
@@ -41,7 +42,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
     const projectNodes = getNodesByProject(projectId);
 
     const [referenced, recommended] = await Promise.all([
-      detectReferences(message, projectNodes).catch(() => [] as string[]),
+      (groqClient ? detectReferences(message, projectNodes, groqClient) : Promise.resolve([] as string[])).catch(() => [] as string[]),
       shouldPerformRAG()
         ? (async () => {
             try {
@@ -59,7 +60,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
     ]);
     setReferenced(referenced);
     setRecommended(recommended);
-  }, [currentNodeId, currentNode, getNodesByProject, shouldPerformRAG, getMinScore, gripLevel, setReferenced, setRecommended, clearContext]);
+  }, [currentNodeId, currentNode, getNodesByProject, shouldPerformRAG, getMinScore, gripLevel, setReferenced, setRecommended, clearContext, groqClient]);
 
   const handleInputChange = (text: string) => {
     setCurrentInput(text);
@@ -69,7 +70,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
   };
 
   const handleSend = async () => {
-    if (!currentInput.trim() || !currentNodeId || isGenerating) return;
+    if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
     const userMessage = currentInput.trim();
     setCurrentInput('');
     setIsGenerating(true);
@@ -141,7 +142,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
 
       const isFirst = messages.filter(m => m.role === 'user').length === 0;
       if (isFirst) {
-        const title = await generateTitle(userMessage, fullResponse);
+        const title = await generateTitle(userMessage, fullResponse, groqClient);
         await renameNode(currentNodeId, title);
       }
 

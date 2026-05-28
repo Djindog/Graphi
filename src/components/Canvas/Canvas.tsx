@@ -11,6 +11,7 @@ interface Props {
   nodes: Node[];
   rootNodeId: string | null;
   projects: Project[];
+  onProjectCreated: (project: Project) => void;
 }
 
 interface RenameTarget {
@@ -22,7 +23,7 @@ interface RenameTarget {
   height: number;
 }
 
-export function Canvas({ nodes, rootNodeId, projects }: Props) {
+export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
   const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, clearContext, initContext } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
@@ -161,6 +162,7 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
           onBranch={() => { setOverlay(null); setDangerNodeIds([]); }}
           onDangerHover={setDangerNodeIds}
           onRenameRequest={handleRenameRequest}
+          onProjectCreated={onProjectCreated}
         />
       )}
 

@@ -15,7 +15,7 @@ interface Props {
 }
 
 const NODE_W = 160;
-const NODE_H = 40;
+const NODE_H = 56;
 const H_GAP = 80;
 const V_GAP = 80;
 const MAX_W = 320;
@@ -32,8 +32,33 @@ interface TreeNode {
 // Estimate pixel width needed to display the full title comfortably.
 function expandedWidth(title: string | null): number {
   const t = title || 'Untitled';
-  const needed = Math.ceil(t.length * 7.8) + 18; // ~7.8px/char + 12px padding + 26px dotMenu
+  // Base on longest single line (line 1 or line 2)
+  const [l1, l2] = wrapTitle(t);
+  const longest = Math.max(l1.length, l2?.length ?? 0);
+  const needed = Math.ceil(longest * 7.8) + 18;
   return Math.min(Math.max(NODE_W, needed), MAX_W);
+}
+
+// Split title into at most 2 display lines. Tries to break on a word boundary
+// around the midpoint; falls back to a hard split at 16 chars.
+function wrapTitle(title: string): [string, string | null] {
+  if (title.length <= 16) return [title, null];
+  const mid = Math.ceil(title.length / 2);
+  // find nearest space around the midpoint
+  let breakAt = -1;
+  for (let i = mid; i >= 1; i--) {
+    if (title[i] === ' ') { breakAt = i; break; }
+  }
+  if (breakAt === -1) {
+    for (let i = mid + 1; i < title.length; i++) {
+      if (title[i] === ' ') { breakAt = i; break; }
+    }
+  }
+  if (breakAt === -1) breakAt = 16;
+  const line1 = title.slice(0, breakAt).trimEnd();
+  let line2 = title.slice(breakAt).trimStart();
+  if (line2.length > 18) line2 = line2.slice(0, 17) + '…';
+  return [line1, line2 || null];
 }
 
 export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
@@ -191,22 +216,36 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('stroke', ns.stroke)
         .attr('stroke-width', ns.strokeWidth);
 
-      // Text: full title if current, truncated otherwise
-      g.append('text')
+      // Text: two-line wrapped title
+      const fullTitle = nodeData.title || 'Untitled';
+      const [fl1, fl2] = wrapTitle(fullTitle);
+      const initX = isCurrent ? expW / 2 : NODE_W / 2;
+      const lineH = 16; // px between tspan baselines
+      const textY1 = fl2 ? NODE_H / 2 - lineH / 2 : NODE_H / 2;
+      const textY2 = textY1 + lineH;
+
+      const textEl = g.append('text')
         .attr('class', 'node-label')
-        .attr('x', isCurrent ? expW / 2 : NODE_W / 2)
-        .attr('y', NODE_H / 2)
-        .attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
+        .attr('text-anchor', 'middle')
         .attr('fill', ns.textColor)
         .attr('font-size', '13px')
         .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
         .attr('font-weight', isCurrent ? '500' : '400')
-        .attr('pointer-events', 'none')
-        .text(() => {
-          const t = nodeData.title || 'Untitled';
-          if (isCurrent) return t;
-          return t.length > 16 ? t.slice(0, 16) + '…' : t;
-        });
+        .attr('pointer-events', 'none');
+
+      textEl.append('tspan')
+        .attr('class', 'line1')
+        .attr('x', initX).attr('y', textY1)
+        .attr('dominant-baseline', 'middle')
+        .text(fl1);
+
+      if (fl2) {
+        textEl.append('tspan')
+          .attr('class', 'line2')
+          .attr('x', initX).attr('y', textY2)
+          .attr('dominant-baseline', 'middle')
+          .text(fl2);
+      }
 
       // "···" menu — dotMenu group is translated so its internal coords stay fixed at NODE_W
       // and we shift the whole group rightward by (initW - NODE_W)
@@ -243,10 +282,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
             .attr('width', expW);
         }
         g.select<SVGTextElement>('text.node-label')
+          .selectAll('tspan')
           .transition().duration(140)
           .attr('x', expW / 2)
-          .on('end', function() {
-            d3.select(this).text(nodeData.title || 'Untitled');
+          .on('end', function(_d, i) {
+            const [el1, el2] = wrapTitle(fullTitle);
+            if (i === 0) d3.select(this).text(el1);
+            else d3.select(this).text(el2 ?? '');
           });
         dotMenu.transition().duration(140)
           .attr('transform', `translate(${expW - NODE_W},0)`);
@@ -263,12 +305,10 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           g.select<SVGRectElement>('rect.glow-bg').transition().duration(140)
             .attr('width', NODE_W);
         }
-        g.select<SVGTextElement>('text.node-label').transition().duration(140)
-          .attr('x', NODE_W / 2)
-          .text(() => {
-            const t = nodeData.title || 'Untitled';
-            return t.length > 16 ? t.slice(0, 16) + '…' : t;
-          });
+        g.select<SVGTextElement>('text.node-label')
+          .selectAll('tspan')
+          .transition().duration(140)
+          .attr('x', NODE_W / 2);
         dotMenu.transition().duration(140)
           .attr('transform', 'translate(0,0)');
       });

@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Graphi — Design Preview</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: #E8EAF0;
+    color: #111827;
+    margin: 0;
+    padding: 32px 24px 80px;
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+  }
+
+  /* ── Section scaffolding ── */
+  h2.section {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #9CA3AF;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E5E7EB;
+  }
+  .preview-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .label {
+    font-size: 11px;
+    color: #9CA3AF;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .card-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOKENS ── */
+  :root {
+    --accent:       #4F46E5;
+    --accent-dark:  #4338CA;
+    --accent-faded: #A5B4FC;
+    --accent-tint:  #EEF0FD;
+    --gray-50:  #F9FAFB;
+    --gray-100: #F3F4F6;
+    --gray-200: #E5E7EB;
+    --gray-300: #D1D5DB;
+    --gray-400: #9CA3AF;
+    --gray-600: #4B5563;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --canvas-bg: #EEF0F6;
+    --pane-bg: #FAFBFD;
+    --sidebar-bg: #FFFFFF;
+    --red: #EF4444;
+  }
+
+  /* ─────────────────────────────────────────
+     1. AUTH PAGE
+  ───────────────────────────────────────── */
+  .auth-bg {
+    background-color: var(--canvas-bg);
+    background-image: radial-gradient(circle, #C4C9DA 1px, transparent 1px);
+    background-size: 24px 24px;
+    border-radius: 16px;
+    padding: 60px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 440px;
+  }
+  .auth-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 36px 32px;
+    width: 340px;
+    box-shadow:
+      0 0 0 1px rgba(79,70,229,0.08),
+      0 24px 48px rgba(0,0,0,0.09),
+      0 4px 12px rgba(0,0,0,0.05);
+  }
+  .auth-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .auth-logo-icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+  }
+  .auth-wordmark {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--gray-900);
+  }
+  .auth-tagline {
+    font-size: 13px;
+    color: var(--gray-400);
+    font-style: italic;
+    margin-bottom: 28px;
+  }
+  .auth-input {
+    width: 100%;
+    background: var(--gray-50);
+    border: 1.5px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 14px;
+    color: var(--gray-900);
+    outline: none;
+    display: block;
+    margin-bottom: 10px;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .auth-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+  }
+  .auth-input::placeholder { color: var(--gray-400); }
+  .auth-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .auth-btn:hover { background: var(--accent-dark); }
+  .auth-switch {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--gray-400);
+  }
+  .auth-switch a { color: var(--accent); text-decoration: none; font-weight: 500; }
+
+  /* ─────────────────────────────────────────
+     2. SIDEBAR
+  ───────────────────────────────────────── */
+  .sidebar {
+    width: 220px;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    height: 440px;
+  }
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--gray-100);
+  }
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar-logo-icon { width: 20px; height: 20px; }
+  .sidebar-wordmark {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--gray-900);
+  }
+  .sidebar-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--gray-400);
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+  }
+  .sidebar-new {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--gray-100);
+  }
+  .sidebar-new-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--gray-400);
+    background: none;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .sidebar-new-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-tint);
+  }
+  .sidebar-new-btn svg { flex-shrink: 0; }
+  .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 8px; }
+  .proj-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+    margin-bottom: 2px;
+    font-size: 13.5px;
+    color: var(--gray-700);
+    transition: background 0.1s;
+    gap: 4px;
+    border-left: 2px solid transparent;
+  }
+  .proj-item:hover { background: var(--gray-50); }
+  .proj-item.active {
+    background: var(--accent-tint);
+    color: var(--accent);
+    font-weight: 500;
+    border-left-color: var(--accent);
+  }
+  .proj-item-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .proj-item-menu {
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    border: none; background: none; cursor: pointer; border-radius: 5px;
+    color: var(--gray-400); font-size: 14px; letter-spacing: 1px; opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .proj-item:hover .proj-item-menu { opacity: 1; }
+  .sidebar-footer {
+    border-top: 1px solid var(--gray-100);
+    padding: 10px 14px;
+  }
+  .sidebar-signout {
+    background: none; border: none; cursor: pointer;
+    color: var(--gray-400); font-size: 13px; font-family: inherit;
+    padding: 0; transition: color 0.15s;
+  }
+  .sidebar-signout:hover { color: var(--gray-700); }
+
+  /* ─────────────────────────────────────────
+     3. CANVAS
+  ───────────────────────────────────────── */
+  .canvas-demo {
+    flex: 1;
+    min-width: 480px;
+    height: 340px;
+    background-color: var(--canvas-bg);
+    background-image: radial-gradient(circle, #C4C9DA 1px, transparent 1px);
+    background-size: 24px 24px;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #DDE0EA;
+  }
+  .canvas-toolbar {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: flex;
+    gap: 3px;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 4px 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .canvas-mode-btn {
+    padding: 5px 13px;
+    font-size: 12.5px;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    color: var(--gray-400);
+    background: transparent;
+  }
+  .canvas-mode-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* SVG nodes in canvas demo */
+  .canvas-svg { width: 100%; height: 100%; }
+
+  /* ─────────────────────────────────────────
+     4. CHAT PANE
+  ───────────────────────────────────────── */
+  .chat-pane {
+    width: 320px;
+    background: var(--pane-bg);
+    border-radius: 16px;
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    height: 560px;
+  }
+  .chat-header {
+    padding: 14px 16px 13px;
+    border-bottom: 1px solid #ECEEF3;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .chat-header-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.18);
+  }
+  .chat-header-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--gray-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Context summary */
+  .context-summary {
+    border-bottom: 1px solid #ECEEF3;
+    padding: 10px 12px 8px;
+    background: #F5F6FB;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .context-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .context-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-400);
+  }
+  .context-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-tint);
+    padding: 1px 7px;
+    border-radius: 20px;
+  }
+  .context-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-300);
+    padding: 0 4px;
+    margin: 6px 0 3px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .ctx-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .ctx-dot.lineage   { background: #60A5FA; }
+  .ctx-dot.ref       { background: var(--accent); }
+  .ctx-dot.rec       { background: #14B8A6; }
+  .context-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    font-size: 13px;
+    color: var(--accent);
+    transition: background 0.1s;
+    font-family: inherit;
+  }
+  .context-chip.inactive { color: var(--gray-400); opacity: 0.65; }
+  .context-chip:hover { background: #EEEEFD; }
+  .chip-icon { font-size: 9px; line-height: 1; }
+
+  /* Messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .msg { display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .msg.assistant { justify-content: flex-start; }
+  .bubble {
+    max-width: 85%;
+    padding: 11px 15px;
+    font-size: 14.5px;
+    line-height: 1.65;
+    word-break: break-word;
+  }
+  .bubble.user {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 16px 16px 4px 16px;
+  }
+  .bubble.assistant {
+    background: #F3F4F8;
+    color: var(--gray-900);
+    border: 1px solid #EAECF3;
+    border-radius: 4px 16px 16px 16px;
+  }
+  .typing-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 16px;
+    background: #F3F4F8;
+    border: 1px solid #EAECF3;
+    border-radius: 4px 16px 16px 16px;
+    width: fit-content;
+  }
+  .typing-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--gray-400);
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.3; transform: scale(0.8); }
+  }
+
+  /* Chat input */
+  .chat-input-area {
+    border-top: 1px solid #ECEEF3;
+    padding: 12px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--pane-bg);
+  }
+  .chat-textarea {
+    width: 100%;
+    background: #fff;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 14px;
+    padding: 11px 13px;
+    font-size: 14px;
+    color: var(--gray-900);
+    outline: none;
+    resize: none;
+    line-height: 1.5;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .chat-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.10);
+  }
+  .chat-textarea::placeholder { color: var(--gray-300); }
+  .chat-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .grip-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .grip-label {
+    font-size: 11.5px;
+    color: var(--gray-400);
+    margin-right: 4px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .grip-btn {
+    padding: 3px 9px;
+    font-size: 12.5px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--gray-400);
+    font-weight: 400;
+    transition: all 0.1s;
+    font-family: inherit;
+    text-transform: capitalize;
+  }
+  .grip-btn.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 500;
+  }
+  .send-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .send-btn:hover { background: var(--accent-dark); }
+  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ─────────────────────────────────────────
+     5. NODE TOOL OVERLAY
+  ───────────────────────────────────────── */
+  .overlay {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    padding: 5px;
+    min-width: 160px;
+  }
+  .overlay-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    border-radius: 9px;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--gray-900);
+    transition: background 0.1s;
+    text-align: left;
+    font-family: inherit;
+    font-weight: 400;
+  }
+  .overlay-btn:hover { background: var(--gray-50); }
+  .overlay-btn.primary:hover { background: var(--accent-tint); color: var(--accent); }
+  .overlay-btn.danger { color: var(--red); }
+  .overlay-btn.danger:hover { background: #FEF2F2; }
+  .overlay-btn.muted { color: var(--gray-400); }
+  .overlay-btn svg { flex-shrink: 0; opacity: 0.75; }
+  .overlay-divider {
+    height: 1px;
+    background: #ECEEF3;
+    margin: 4px 0;
+  }
+  .overlay-btn .trail {
+    margin-left: auto;
+    color: var(--gray-300);
+    font-size: 12px;
+  }
+
+  /* ─────────────────────────────────────────
+     6. TOAST
+  ───────────────────────────────────────── */
+  .toast-demo { display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.14);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+  }
+  .toast.success { background: var(--accent); }
+  .toast.error   { background: var(--red); }
+  .toast-icon { font-size: 12px; }
+
+  /* ─────────────────────────────────────────
+     7. COLOR PALETTE SWATCH
+  ───────────────────────────────────────── */
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+  }
+  .swatch-box {
+    width: 56px; height: 56px; border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .swatch-label { font-size: 10px; color: var(--gray-400); text-align: center; font-weight: 500; }
+
+  /* ─────────────────────────────────────────
+     8. CANVAS NODES (SVG)
+  ───────────────────────────────────────── */
+  .node-shadow { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.10)); }
+  .node-glow   { filter: drop-shadow(0 0 8px rgba(79,70,229,0.35)); }
+</style>
+</head>
+<body>
+
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-0.5px;margin:0 0 4px;">Graphi — Design Preview</h1>
+<p style="color:#9CA3AF;font-size:13px;margin:0 0 0;">Elevated light mode upgrade · All components side by side</p>
+
+<!-- ── COLOR PALETTE ── -->
+<h2 class="section">Color System</h2>
+<div class="swatches">
+  <div class="swatch"><div class="swatch-box" style="background:#4F46E5;"></div><div class="swatch-label">Accent<br>#4F46E5</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#4338CA;"></div><div class="swatch-label">Accent Dark<br>#4338CA</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#A5B4FC;"></div><div class="swatch-label">Accent Faded<br>#A5B4FC</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#EEF0FD;"></div><div class="swatch-label">Accent Tint<br>#EEF0FD</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#EEF0F6;border:1px solid #DDE0EA;background-image:radial-gradient(circle,#C4C9DA 1px,transparent 1px);background-size:12px 12px;"></div><div class="swatch-label">Canvas BG<br>dot grid</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#FAFBFD;"></div><div class="swatch-label">Pane BG<br>#FAFBFD</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#111827;"></div><div class="swatch-label">Gray 900<br>#111827</div></div>
+  <div class="swatch"><div class="swatch-box" style="background:#EF4444;"></div><div class="swatch-label">Error<br>#EF4444</div></div>
+</div>
+<div style="margin-top:12px;padding:10px 14px;background:#fff;border-radius:10px;font-size:12px;color:#6B7280;border:1px solid #E5E7EB;max-width:520px;">
+  <b style="color:#374151;">Key shift:</b> Accent moves from <span style="color:#2563EB;font-weight:600;">#2563EB (Tailwind blue-600)</span> → <span style="color:#4F46E5;font-weight:600;">#4F46E5 (indigo-600)</span>.
+  Same cool-trustworthy family, but distinctly Graphi rather than "generic blue app."
+</div>
+
+<!-- ── AUTH PAGE ── -->
+<h2 class="section">Auth Page</h2>
+<div class="preview-row">
+  <div class="card-wrap">
+    <div class="label">New — branded card on dot-grid background</div>
+    <div class="auth-bg">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <!-- Graph icon -->
+          <svg class="auth-logo-icon" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="17" cy="5" r="4" fill="#4F46E5"/>
+            <circle cx="5" cy="26" r="4" fill="#4F46E5" opacity="0.7"/>
+            <circle cx="29" cy="26" r="4" fill="#4F46E5" opacity="0.7"/>
+            <line x1="17" y1="9" x2="5" y2="22" stroke="#A5B4FC" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="17" y1="9" x2="29" y2="22" stroke="#A5B4FC" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="5" y1="26" x2="29" y2="26" stroke="#C7D2FE" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span class="auth-wordmark">Graphi</span>
+        </div>
+        <div class="auth-tagline">Think in branches.</div>
+        <input class="auth-input" type="email" placeholder="Email" />
+        <input class="auth-input" type="password" placeholder="Password" />
+        <button class="auth-btn">Sign in</button>
+        <div class="auth-switch">Don't have an account? <a href="#">Sign up</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SIDEBAR ── -->
+<h2 class="section">Sidebar</h2>
+<div class="preview-row">
+  <div class="card-wrap">
+    <div class="label">Expanded — with logo, active project, hover state</div>
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <svg class="sidebar-logo-icon" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="3" r="2.5" fill="#4F46E5"/>
+            <circle cx="3" cy="15.5" r="2.5" fill="#4F46E5" opacity="0.65"/>
+            <circle cx="17" cy="15.5" r="2.5" fill="#4F46E5" opacity="0.65"/>
+            <line x1="10" y1="5.5" x2="3" y2="13" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/>
+            <line x1="10" y1="5.5" x2="17" y2="13" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          <span class="sidebar-wordmark">Graphi</span>
+        </div>
+        <button class="sidebar-toggle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="sidebar-new">
+        <button class="sidebar-new-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New project
+        </button>
+      </div>
+      <div class="sidebar-list">
+        <div class="proj-item active">
+          <span class="proj-item-name">Consciousness &amp; Self</span>
+          <button class="proj-item-menu">···</button>
+        </div>
+        <div class="proj-item" style="background:#F9FAFB;">
+          <span class="proj-item-name">Product Strategy Q3</span>
+          <button class="proj-item-menu" style="opacity:1;">···</button>
+        </div>
+        <div class="proj-item">
+          <span class="proj-item-name">Language Models</span>
+          <button class="proj-item-menu">···</button>
+        </div>
+        <div class="proj-item">
+          <span class="proj-item-name">Reading Notes — SICP</span>
+          <button class="proj-item-menu">···</button>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <button class="sidebar-signout">Sign out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CANVAS ── -->
+<h2 class="section">Canvas (Tree Mode)</h2>
+<div class="preview-row">
+  <div class="card-wrap" style="flex:1;min-width:520px;">
+    <div class="label">Dot-grid background · elevated toolbar · node styles (selected, active context, deactivated, default)</div>
+    <div class="canvas-demo">
+      <div class="canvas-toolbar">
+        <button class="canvas-mode-btn active">Tree</button>
+        <button class="canvas-mode-btn">Force</button>
+      </div>
+
+      <svg class="canvas-svg" viewBox="0 0 540 320">
+        <!-- Edges -->
+        <!-- Root → Node A -->
+        <path d="M270,52 L270,72 Q270,82 260,82 L170,82 Q160,82 160,92 L160,112" fill="none" stroke="#4F46E5" stroke-width="2" opacity="1"/>
+        <!-- Root → Node B (selected branch) -->
+        <path d="M270,52 L270,112" fill="none" stroke="#4F46E5" stroke-width="2" opacity="1"/>
+        <!-- Root → Node C -->
+        <path d="M270,52 L270,72 Q270,82 280,82 L380,82 Q390,82 390,92 L390,112" fill="none" stroke="#D1D5DB" stroke-width="1" opacity="0.7"/>
+        <!-- Node A → Node D -->
+        <path d="M160,156 L160,196" fill="none" stroke="#A5B4FC" stroke-width="1" opacity="0.4"/>
+        <!-- Node B → Node E (current active) -->
+        <path d="M270,156 L270,196" fill="none" stroke="#4F46E5" stroke-width="2" opacity="1"/>
+
+        <!-- Root node (active context, ancestor) -->
+        <g class="node-glow" transform="translate(190,12)">
+          <rect width="160" height="44" rx="12" fill="#EEF0FD" stroke="#4F46E5" stroke-width="2.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#4338CA" font-size="13" font-family="system-ui,sans-serif" font-weight="500">Root Thread</text>
+        </g>
+
+        <!-- Node A (deactivated context) -->
+        <g transform="translate(80,112)" opacity="0.45">
+          <rect width="160" height="44" rx="12" fill="#F9FAFB" stroke="#A5B4FC" stroke-width="1.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#A5B4FC" font-size="13" font-family="system-ui,sans-serif">Memory &amp; Identity</text>
+        </g>
+
+        <!-- Node B (selected / current) -->
+        <g class="node-glow" transform="translate(190,112)">
+          <rect width="160" height="44" rx="12" fill="#EEF0FD" stroke="#4F46E5" stroke-width="3.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#4338CA" font-size="13" font-family="system-ui,sans-serif" font-weight="600">Consciousness</text>
+        </g>
+
+        <!-- Node C (non-context) -->
+        <g class="node-shadow" transform="translate(310,112)">
+          <rect width="160" height="44" rx="12" fill="#fff" stroke="#D1D5DB" stroke-width="1.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#9CA3AF" font-size="13" font-family="system-ui,sans-serif">Free Will</text>
+        </g>
+
+        <!-- Node D (deactivated child of A) -->
+        <g transform="translate(80,196)" opacity="0.45">
+          <rect width="160" height="44" rx="12" fill="#F9FAFB" stroke="#A5B4FC" stroke-width="1.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#A5B4FC" font-size="13" font-family="system-ui,sans-serif">Perception</text>
+        </g>
+
+        <!-- Node E (active context child) -->
+        <g class="node-glow" transform="translate(190,196)">
+          <rect width="160" height="44" rx="12" fill="#EEF0FD" stroke="#4F46E5" stroke-width="2.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#4338CA" font-size="13" font-family="system-ui,sans-serif" font-weight="500">Qualia &amp; Experience</text>
+        </g>
+
+        <!-- Node F (non-context) -->
+        <g class="node-shadow" transform="translate(310,196)">
+          <rect width="160" height="44" rx="12" fill="#fff" stroke="#D1D5DB" stroke-width="1.5"/>
+          <text x="80" y="22" dominant-baseline="middle" text-anchor="middle" fill="#374151" font-size="13" font-family="system-ui,sans-serif">Determinism</text>
+        </g>
+
+        <!-- Legend -->
+        <g transform="translate(14, 270)">
+          <rect width="8" height="8" rx="2" fill="#4F46E5"/>
+          <text x="13" y="7" font-size="10" fill="#6B7280" font-family="system-ui,sans-serif">Selected / Active context</text>
+          <rect x="0" y="14" width="8" height="8" rx="2" fill="#F9FAFB" stroke="#A5B4FC" stroke-width="1.5"/>
+          <text x="13" y="21" font-size="10" fill="#6B7280" font-family="system-ui,sans-serif">Deactivated (click to re-include)</text>
+          <rect x="0" y="28" width="8" height="8" rx="2" fill="#fff" stroke="#D1D5DB" stroke-width="1.5"/>
+          <text x="13" y="35" font-size="10" fill="#6B7280" font-family="system-ui,sans-serif">Non-context node</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHAT PANE ── -->
+<h2 class="section">Chat Pane</h2>
+<div class="preview-row">
+  <div class="card-wrap">
+    <div class="label">Full chat pane — header, context summary, messages, input</div>
+    <div class="chat-pane">
+      <!-- Header -->
+      <div class="chat-header">
+        <div class="chat-header-dot"></div>
+        <div class="chat-header-title">Qualia &amp; Experience</div>
+      </div>
+
+      <!-- Context Summary -->
+      <div class="context-summary">
+        <div class="context-header">
+          <span class="context-label">Context</span>
+          <span class="context-badge">3 active</span>
+        </div>
+        <div class="context-section-label"><span class="ctx-dot lineage"></span>Lineage</div>
+        <button class="context-chip">
+          <span class="chip-icon">▪</span>
+          Root Thread
+        </button>
+        <button class="context-chip">
+          <span class="chip-icon">▪</span>
+          Consciousness
+        </button>
+        <div class="context-section-label"><span class="ctx-dot rec"></span>Recommended</div>
+        <button class="context-chip inactive">
+          <span class="chip-icon">▫</span>
+          Memory &amp; Identity
+        </button>
+        <button class="context-chip">
+          <span class="chip-icon">▪</span>
+          Qualia &amp; Experience
+        </button>
+      </div>
+
+      <!-- Messages -->
+      <div class="messages">
+        <div class="msg user">
+          <div class="bubble user">What is it like to see the color red?</div>
+        </div>
+        <div class="msg assistant">
+          <div class="bubble assistant">
+            That's the heart of the "hard problem" of consciousness. The redness of red — what philosophers call a <em>quale</em> — is the subjective, felt quality of the experience. It can't be fully captured by describing wavelengths or neural firing patterns.
+          </div>
+        </div>
+        <div class="msg user">
+          <div class="bubble user">So is there any scientific approach to this?</div>
+        </div>
+        <div class="msg assistant">
+          <!-- typing indicator -->
+          <div class="typing-dots">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-area">
+        <textarea class="chat-textarea" placeholder="Message…" rows="3"></textarea>
+        <div class="chat-controls">
+          <div class="grip-group">
+            <span class="grip-label">
+              <svg width="13" height="10" viewBox="0 0 13 10" fill="none">
+                <rect y="0" width="13" height="1.5" rx="1" fill="#9CA3AF"/>
+                <rect y="4" width="9" height="1.5" rx="1" fill="#9CA3AF"/>
+                <rect y="8" width="5" height="1.5" rx="1" fill="#9CA3AF"/>
+              </svg>
+              Context
+            </span>
+            <button class="grip-btn">Off</button>
+            <button class="grip-btn">Low</button>
+            <button class="grip-btn active">Mid</button>
+            <button class="grip-btn">High</button>
+          </div>
+          <button class="send-btn">
+            Send
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NODE TOOL OVERLAY + TOAST side column -->
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <!-- Overlay -->
+    <div class="card-wrap">
+      <div class="label">Node Tool Overlay</div>
+      <div class="overlay">
+        <button class="overlay-btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+            <path d="M18 9a9 9 0 0 1-9 9"/>
+          </svg>
+          Fork
+        </button>
+        <button class="overlay-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          Rename
+        </button>
+        <div class="overlay-divider"></div>
+        <button class="overlay-btn danger">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+            <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+            <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+            <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+          </svg>
+          Cut
+        </button>
+        <button class="overlay-btn danger">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+          Prune
+        </button>
+        <div class="overlay-divider"></div>
+        <button class="overlay-btn muted">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+            <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+          </svg>
+          Transplant
+          <span class="trail">›</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="card-wrap">
+      <div class="label">Toast Notifications</div>
+      <div class="toast-demo">
+        <div class="toast success">
+          <span class="toast-icon">✓</span>
+          "Consciousness &amp; Self" created
+        </div>
+        <div class="toast error">
+          <span class="toast-icon">✕</span>
+          Failed to save — check connection
+        </div>
+      </div>
+    </div>
+
+    <!-- Typography note -->
+    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:14px 16px;max-width:260px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:10px;">Type Scale</div>
+      <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;color:#111827;line-height:1.2;">Graphi</div>
+      <div style="font-size:15px;font-weight:600;color:#111827;margin-top:4px;">Node Title</div>
+      <div style="font-size:14.5px;color:#374151;margin-top:2px;">Message body text</div>
+      <div style="font-size:13.5px;color:#4B5563;margin-top:2px;">Sidebar project name</div>
+      <div style="font-size:13px;color:#6B7280;margin-top:2px;">Context chip label</div>
+      <div style="font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#9CA3AF;margin-top:4px;">Section Header</div>
+    </div>
+  </div>
+</div>
+
+<div style="height:48px;"></div>
+
+</body>
+</html>

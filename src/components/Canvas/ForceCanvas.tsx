@@ -20,6 +20,25 @@ const GRAY = '#D1D5DB';
 
 const NODE_RADIUS = 11;
 
+function wrapForceTitle(title: string): [string, string | null] {
+  if (title.length <= 12) return [title, null];
+  const mid = Math.ceil(title.length / 2);
+  let breakAt = -1;
+  for (let i = mid; i >= 1; i--) {
+    if (title[i] === ' ') { breakAt = i; break; }
+  }
+  if (breakAt === -1) {
+    for (let i = mid + 1; i < title.length; i++) {
+      if (title[i] === ' ') { breakAt = i; break; }
+    }
+  }
+  if (breakAt === -1) breakAt = 12;
+  const l1 = title.slice(0, breakAt).trimEnd();
+  let l2 = title.slice(breakAt).trimStart();
+  if (l2.length > 14) l2 = l2.slice(0, 13) + '…';
+  return [l1, l2 || null];
+}
+
 interface SimNode extends d3.SimulationNodeDatum {
   id: string;
   title: string | null;
@@ -166,18 +185,25 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       .attr('stroke', GRAY)
       .attr('stroke-width', 1.5);
 
-    nodeGroup.append('text')
-      .attr('class', 'node-label')
-      .attr('text-anchor', 'middle')
-      .attr('dy', NODE_RADIUS + 12)
-      .attr('font-size', '10px')
-      .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
-      .attr('fill', '#6B7280')
-      .attr('pointer-events', 'none')
-      .text(d => {
-        const t = d.title || 'Untitled';
-        return t.length > 16 ? t.slice(0, 16) + '…' : t;
-      });
+    nodeGroup.each(function(d) {
+      const t = d.title || 'Untitled';
+      const [l1, l2] = wrapForceTitle(t);
+      const textEl = d3.select(this).append('text')
+        .attr('class', 'node-label')
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '10px')
+        .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+        .attr('fill', '#6B7280')
+        .attr('pointer-events', 'none');
+      textEl.append('tspan')
+        .attr('x', 0).attr('dy', NODE_RADIUS + 12)
+        .text(l1);
+      if (l2) {
+        textEl.append('tspan')
+          .attr('x', 0).attr('dy', 13)
+          .text(l2);
+      }
+    });
 
     // Hover & click tracking
     let clickTimer: ReturnType<typeof setTimeout> | null = null;

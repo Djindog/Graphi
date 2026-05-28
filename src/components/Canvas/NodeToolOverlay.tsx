@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDagStore } from '../../stores/dagStore';
 import { useChatStore } from '../../stores/chatStore';
+import { NewProjectModal } from '../NewProjectModal';
 import type { Node, Project } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,6 +15,7 @@ interface Props {
   onBranch: (newNode: Node) => void;
   onDangerHover: (ids: string[]) => void;
   onRenameRequest: (node: Node) => void;
+  onProjectCreated: (project: Project) => void;
 }
 
 const ForkIcon = () => (
@@ -53,11 +55,12 @@ const TransplantIcon = () => (
   </svg>
 );
 
-export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose, onBranch, onDangerHover, onRenameRequest }: Props) {
+export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
   const { addNode, deleteNode, getDescendants, getAllAncestors, nodes } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
   const [transplantOpen, setTransplantOpen] = useState(false);
+  const [newProjectModal, setNewProjectModal] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,21 +106,60 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
     onClose();
   };
 
-  const transplant = async (targetProjectId: string) => {
+  const transplant = async (targetProjectId: string, rootNodeId?: string) => {
     const allNodes = [node, ...getDescendants(node.id)];
     const idMap = new Map<string, string>();
     allNodes.forEach(n => idMap.set(n.id, uuidv4()));
+    const now = new Date().toISOString();
     for (const n of allNodes) {
+      const isRoot = n.id === node.id;
       await supabase.from('nodes').insert({
         id: idMap.get(n.id)!,
         projectId: targetProjectId,
-        title: n.title, content: n.content,
-        parentId: n.parentId ? (idMap.get(n.parentId) ?? null) : null,
+        title: n.title,
+        content: n.content,
+        parentId: isRoot ? (rootNodeId ?? null) : (idMap.get(n.parentId!) ?? null),
+        order: n.order,
         version: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       });
     }
+    setTransplantOpen(false);
+    onClose();
+  };
+
+  const transplantToNew = async (name: string, _description: string) => {
+    const trimmed = name.trim() || 'Untitled';
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const projectId = uuidv4();
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('projects').insert({
+      id: projectId, name: trimmed, userId: user.id, rootNodeId: null, createdAt: now,
+    });
+    if (error) throw error;
+    const allNodes = [node, ...getDescendants(node.id)];
+    const idMap = new Map<string, string>();
+    allNodes.forEach(n => idMap.set(n.id, uuidv4()));
+    const newRootId = idMap.get(node.id)!;
+    for (const n of allNodes) {
+      const isRootNode = n.id === node.id;
+      await supabase.from('nodes').insert({
+        id: idMap.get(n.id)!,
+        projectId,
+        title: n.title,
+        content: n.content,
+        parentId: isRootNode ? null : (idMap.get(n.parentId!) ?? null),
+        order: n.order,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    await supabase.from('projects').update({ rootNodeId: newRootId }).eq('id', projectId);
+    onProjectCreated({ id: projectId, name: trimmed, userId: user.id, rootNodeId: newRootId, createdAt: now });
+    setNewProjectModal(false);
     setTransplantOpen(false);
     onClose();
   };
@@ -126,6 +168,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
   const clampedY = Math.min(position.y, window.innerHeight - 260);
 
   return (
+    <>
     <div
       ref={ref}
       onClick={e => e.stopPropagation()}
@@ -142,9 +185,8 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
           {projects.filter(p => p.id !== node.projectId).map(p => (
             <Btn key={p.id} onClick={() => transplant(p.id)}>{p.name}</Btn>
           ))}
-          {projects.filter(p => p.id !== node.projectId).length === 0 && (
-            <p style={{ color: '#D1D5DB', fontSize: 12, padding: '4px 8px' }}>No other projects</p>
-          )}
+          <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
+          <Btn onClick={() => setNewProjectModal(true)} muted>New project</Btn>
           <Btn onClick={() => setTransplantOpen(false)} muted>Cancel</Btn>
         </div>
       ) : (
@@ -165,6 +207,14 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
         </>
       )}
     </div>
+
+    {newProjectModal && (
+      <NewProjectModal
+        onConfirm={transplantToNew}
+        onClose={() => setNewProjectModal(false)}
+      />
+    )}
+    </>
   );
 }
 

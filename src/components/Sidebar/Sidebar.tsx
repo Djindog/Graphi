@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../lib/supabase';
 import { useDagStore } from '../../stores/dagStore';
+import { NewProjectModal } from '../NewProjectModal';
 import type { Project } from '../../types';
 
 interface SidebarProps {
@@ -14,6 +15,7 @@ interface SidebarProps {
   onProjectDeleted: (projectId: string) => void;
   onProjectRenamed: (projectId: string, name: string) => void;
   onError: (msg: string) => void;
+  onOpenSettings: () => void;
 }
 
 const PinIcon = () => (
@@ -39,11 +41,9 @@ const DeleteIcon = () => (
 
 export function Sidebar({
   collapsed, onToggle, activeProjectId, projects,
-  onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onError,
+  onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onError, onOpenSettings,
 }: SidebarProps) {
-  const [showInput, setShowInput] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
   const [projectMenu, setProjectMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
@@ -63,28 +63,20 @@ export function Sidebar({
     return () => document.removeEventListener('click', handler);
   }, [projectMenu]);
 
-  const createProject = async () => {
-    const name = newProjectName.trim() || 'Untitled';
+  const createProject = async (name: string, _description: string) => {
+    const trimmed = name.trim() || 'Untitled';
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { onError('Not signed in'); return; }
-    setCreating(true);
-    try {
-      const projectId = uuidv4();
-      const now = new Date().toISOString();
-      const { error: projError } = await supabase.from('projects').insert({
-        id: projectId, name, userId: user.id, rootNodeId: null, createdAt: now,
-      });
-      if (projError) throw projError;
-      const rootNode = await addNode(null, null, projectId);
-      await supabase.from('projects').update({ rootNodeId: rootNode.id }).eq('id', projectId);
-      setNewProjectName('');
-      setShowInput(false);
-      onProjectCreated({ id: projectId, name, userId: user.id, rootNodeId: rootNode.id, createdAt: now });
-    } catch (err: unknown) {
-      onError(`Failed to create project: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setCreating(false);
-    }
+    const projectId = uuidv4();
+    const now = new Date().toISOString();
+    const { error: projError } = await supabase.from('projects').insert({
+      id: projectId, name: trimmed, userId: user.id, rootNodeId: null, createdAt: now,
+    });
+    if (projError) { onError(`Failed to create project: ${projError.message}`); return; }
+    const rootNode = await addNode(null, null, projectId);
+    await supabase.from('projects').update({ rootNodeId: rootNode.id }).eq('id', projectId);
+    setShowModal(false);
+    onProjectCreated({ id: projectId, name: trimmed, userId: user.id, rootNodeId: rootNode.id, createdAt: now });
   };
 
   const handleDeleteProject = async (projectId: string) => {
@@ -175,38 +167,15 @@ export function Sidebar({
 
         {/* New project */}
         <div style={{ padding: '10px 12px', borderBottom: '1px solid #F3F4F6' }}>
-          {showInput ? (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                autoFocus
-                value={newProjectName}
-                onChange={e => setNewProjectName(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') createProject();
-                  if (e.key === 'Escape') { setShowInput(false); setNewProjectName(''); }
-                }}
-                placeholder="Project name…"
-                style={{ flex: 1, background: '#F9FAFB', border: '1.5px solid #2563EB', borderRadius: 8, padding: '6px 10px', fontSize: 13, color: '#111827', outline: 'none', minWidth: 0 }}
-              />
-              <button
-                onClick={createProject}
-                disabled={creating}
-                style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: creating ? 0.5 : 1 }}
-              >
-                {creating ? '…' : '↵'}
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowInput(true)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: 13, color: '#6B7280', background: 'none', border: '1.5px dashed #D1D5DB', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.color = '#2563EB'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
-            >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-              New project
-            </button>
-          )}
+          <button
+            onClick={() => setShowModal(true)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: 13, color: '#6B7280', background: 'none', border: '1.5px dashed #D1D5DB', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.color = '#2563EB'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+            New project
+          </button>
         </div>
 
         {/* Project list */}
@@ -277,14 +246,26 @@ export function Sidebar({
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop: '1px solid #F3F4F6', padding: '10px 16px' }}>
+        <div style={{ borderTop: '1px solid #F3F4F6', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button
             onClick={() => supabase.auth.signOut()}
-            style={{ color: '#9CA3AF', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
+            style={{ color: '#9CA3AF', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
           >
             Sign out
+          </button>
+          <button
+            onClick={onOpenSettings}
+            title="API key settings"
+            style={{ color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
           </button>
         </div>
       </div>
@@ -318,6 +299,13 @@ export function Sidebar({
             Delete
           </MenuBtn>
         </div>
+      )}
+
+      {showModal && (
+        <NewProjectModal
+          onConfirm={createProject}
+          onClose={() => setShowModal(false)}
+        />
       )}
     </>
   );
