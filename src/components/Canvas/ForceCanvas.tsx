@@ -9,6 +9,7 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
+  foldedCountMap: Map<string, number>;
   onNodeClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
@@ -51,7 +52,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -205,6 +206,32 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       }
     });
 
+    // Fold badges
+    nodeGroup.each(function(d) {
+      const count = foldedCountMap.get(d.id);
+      if (count === undefined) return;
+      const label = String(count);
+      const badgeH = 18;
+      const badgeW = Math.max(18, label.length * 8 + 10);
+      // Center at the bottom-right corner of the circle's bounding box
+      const bx = NODE_RADIUS;
+      const by = NODE_RADIUS;
+      const g = d3.select(this);
+      g.append('rect')
+        .attr('x', bx - badgeW / 2).attr('y', by - badgeH / 2)
+        .attr('width', badgeW).attr('height', badgeH)
+        .attr('rx', badgeH / 2)
+        .attr('fill', '#2563EB')
+        .attr('pointer-events', 'none');
+      g.append('text')
+        .attr('x', bx).attr('y', by)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+        .attr('font-size', '11px').attr('font-weight', '600')
+        .attr('fill', '#fff').attr('pointer-events', 'none')
+        .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+        .text(label);
+    });
+
     // Hover & click tracking
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -270,7 +297,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       simulation.stop();
       timers.forEach(t => clearTimeout(t));
     };
-  }, [nodes]);
+  }, [nodes, foldedCountMap]);
 
   // Effect 2: Update node/edge styling based on state (not simulation-related)
   useEffect(() => {
@@ -346,6 +373,17 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
 
   const hoveredNodeObj = hoveredNode ? nodes.find(n => n.id === hoveredNode.id) : null;
 
+  const getHoveredFill = () => {
+    if (!hoveredNode) return '#fff';
+    const id = hoveredNode.id;
+    const inDanger = dangerNodeIds.includes(id);
+    if (inDanger) return '#FEF2F2';
+    if (id === activeNodeId) return '#EFF6FF';
+    if (activeContextNodeIds.includes(id)) return '#EFF6FF';
+    if (deactivatedNodeIds.includes(id)) return '#F9FAFB';
+    return '#FFFFFF';
+  };
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
@@ -364,7 +402,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
             left: hoveredNode.screenX + 8,
             top: hoveredNode.screenY - 14,
             zIndex: 50,
-            background: '#fff',
+            background: getHoveredFill(),
             border: '1px solid #E5E7EB',
             borderRadius: 6,
             padding: '2px 6px',

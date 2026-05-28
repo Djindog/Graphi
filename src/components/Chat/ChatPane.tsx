@@ -159,8 +159,20 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === 'AbortError';
       if (!isAbort) {
+        const status = (err as { status?: number })?.status;
+        const msg = err instanceof Error ? err.message.toLowerCase() : '';
+        const isRateLimit = status === 429 || msg.includes('rate limit') || msg.includes('429');
+        const isAuth = status === 401 || msg.includes('invalid api key') || msg.includes('unauthorized') || msg.includes('authentication');
+        const isNetwork = err instanceof TypeError && (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch'));
+        const content = isRateLimit
+          ? 'Rate limit reached. Check your usage at [console.groq.com](https://console.groq.com).'
+          : isAuth
+          ? 'Invalid API key. Update it in Settings (gear icon).'
+          : isNetwork
+          ? 'Could not reach Groq — check your internet connection and try again.'
+          : 'Error generating response.';
         useChatStore.setState(s => ({
-          messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: '[Error generating response]' } : m),
+          messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content } : m),
         }));
       }
     } finally {
