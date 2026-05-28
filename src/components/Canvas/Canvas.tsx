@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useGraphStore } from '../../stores/graphStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
@@ -13,19 +13,57 @@ interface Props {
   projects: Project[];
 }
 
+interface RenameTarget {
+  id: string;
+  title: string;
+  screenX: number;
+  screenY: number;
+  width: number;
+  height: number;
+}
+
 export function Canvas({ nodes, rootNodeId, projects }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
   const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, clearContext, initContext } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
-  const getAllAncestors = useDagStore(s => s.getAllAncestors);
-  const [overlay, setOverlay] = useState<{ node: Node; x: number; y: number } | null>(null);
+  const { getAllAncestors, renameNode } = useDagStore();
+  const [overlay, setOverlay] = useState<{ node: Node; x: number; y: number; nodeScreenX: number; nodeScreenY: number; nodeWidth: number; nodeHeight: number } | null>(null);
+  const [dangerNodeIds, setDangerNodeIds] = useState<string[]>([]);
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  const [renameVal, setRenameVal] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // IDs of nodes in the direct lineage (ancestors) of the current node
   const lineageNodeIds = activeNodeId ? getAllAncestors(activeNodeId).map(n => n.id) : [];
 
-  // Single click: toggle context if any context exists, otherwise set as current node.
-  // Clicking the current node while in context mode exits context mode entirely.
+  useEffect(() => {
+    if (renameTarget) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renameTarget]);
+
+  const commitRename = async () => {
+    if (!renameTarget) return;
+    const trimmed = renameVal.trim();
+    if (trimmed && trimmed !== renameTarget.title) {
+      await renameNode(renameTarget.id, trimmed);
+    }
+    setRenameTarget(null);
+  };
+
+  const cancelRename = () => setRenameTarget(null);
+
+  const handleRenameRequest = (node: Node) => {
+    if (!overlay) return;
+    const { nodeScreenX, nodeScreenY, nodeWidth, nodeHeight } = overlay;
+    setOverlay(null);
+    setDangerNodeIds([]);
+    setRenameTarget({ id: node.id, title: node.title || '', screenX: nodeScreenX, screenY: nodeScreenY, width: nodeWidth, height: nodeHeight });
+    setRenameVal(node.title || '');
+  };
+
   const handleNodeClick = (node: Node) => {
+    if (renameTarget) { commitRename(); return; }
     setOverlay(null);
     const hasContext = activeContextNodeIds.length > 0 || deactivatedNodeIds.length > 0;
     if (hasContext) {
@@ -36,7 +74,6 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
       }
     } else {
       if (node.id === activeNodeId) {
-        // Re-show lineage — toggle context back on without changing the current node
         initContext(lineageNodeIds);
       } else {
         setCurrentNode(node.id);
@@ -44,23 +81,26 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
     }
   };
 
-  // Double click: open the chat for this node
   const handleNodeDoubleClick = async (nodeId: string) => {
+    if (renameTarget) { commitRename(); return; }
     setOverlay(null);
     await setCurrentNode(nodeId);
   };
 
-  // "···" button click: toggle tool overlay (re-click closes it)
-  const handleNodeMenuClick = (node: Node, screenX: number, screenY: number) => {
+  const handleNodeMenuClick = (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => {
+    if (renameTarget) { commitRename(); return; }
     if (overlay?.node.id === node.id) {
       setOverlay(null);
     } else {
-      setOverlay({ node, x: screenX, y: screenY });
+      setOverlay({ node, x: screenX, y: screenY, nodeScreenX, nodeScreenY, nodeWidth, nodeHeight });
     }
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F0F2F5', position: 'relative', overflow: 'hidden' }}>
+    <div
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F0F2F5', position: 'relative', overflow: 'hidden' }}
+      onClick={() => { if (renameTarget) commitRename(); }}
+    >
       {/* Toolbar */}
       <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 10, display: 'flex', gap: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '3px 4px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         {(['tree', 'force'] as const).map(mode => (
@@ -92,6 +132,8 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
           activeContextNodeIds={activeContextNodeIds}
           deactivatedNodeIds={deactivatedNodeIds}
           lineageNodeIds={lineageNodeIds}
+          dangerNodeIds={dangerNodeIds}
+          renamingNodeId={renameTarget?.id ?? null}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
@@ -103,6 +145,8 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
           activeContextNodeIds={activeContextNodeIds}
           deactivatedNodeIds={deactivatedNodeIds}
           lineageNodeIds={lineageNodeIds}
+          dangerNodeIds={dangerNodeIds}
+          renamingNodeId={renameTarget?.id ?? null}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
@@ -115,8 +159,44 @@ export function Canvas({ nodes, rootNodeId, projects }: Props) {
           position={{ x: overlay.x, y: overlay.y }}
           rootNodeId={rootNodeId}
           projects={projects}
-          onClose={() => setOverlay(null)}
-          onFork={() => setOverlay(null)}
+          onClose={() => { setOverlay(null); setDangerNodeIds([]); }}
+          onBranch={() => { setOverlay(null); setDangerNodeIds([]); }}
+          onDangerHover={setDangerNodeIds}
+          onRenameRequest={handleRenameRequest}
+        />
+      )}
+
+      {/* Inline rename input — floats over the node */}
+      {renameTarget && (
+        <input
+          ref={renameInputRef}
+          value={renameVal}
+          placeholder={renameTarget.title || 'Untitled'}
+          onChange={e => setRenameVal(e.target.value)}
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+            if (e.key === 'Escape') cancelRename();
+          }}
+          style={{
+            position: 'fixed',
+            left: renameTarget.screenX,
+            top: renameTarget.screenY,
+            width: renameTarget.width,
+            height: renameTarget.height,
+            boxSizing: 'border-box',
+            padding: '0 10px',
+            fontSize: 13,
+            fontFamily: '-apple-system, BlinkMacSystemFont, Inter, sans-serif',
+            fontWeight: 500,
+            color: '#1D4ED8',
+            background: '#EFF6FF',
+            border: '2px solid #2563EB',
+            borderRadius: 10,
+            outline: 'none',
+            textAlign: 'center',
+            zIndex: 200,
+          }}
         />
       )}
     </div>

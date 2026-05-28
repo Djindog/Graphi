@@ -6,7 +6,7 @@ import { groqClient, detectReferences, generateTitle } from '../../lib/groq';
 import { embedText } from '../../lib/jina';
 import { supabase } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { MessageList } from './MessageList';
+import { SwipeContainer } from './SwipeContainer';
 import { ChatInput } from './ChatInput';
 import { ContextSummary } from './ContextSummary';
 import type { Message } from '../../types';
@@ -25,6 +25,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
   const { gripLevel, setGripLevel, shouldPerformRAG, getMinScore } = useGripStore();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const currentNode = nodes.find(n => n.id === currentNodeId) ?? null;
 
   useEffect(() => {
@@ -72,6 +73,8 @@ export function ChatPane({ width = 320 }: { width?: number }) {
     const userMessage = currentInput.trim();
     setCurrentInput('');
     setIsGenerating(true);
+    const abort = new AbortController();
+    abortRef.current = abort;
 
     const userMsg: Message = { id: uuidv4(), nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: new Date().toISOString() };
     addMessage(userMsg);
@@ -109,14 +112,27 @@ export function ChatPane({ width = 320 }: { width?: number }) {
           { role: 'user', content: userPrompt },
         ],
         stream: true, max_tokens: 2048,
-      });
+      }, { signal: abort.signal });
 
+      // Batch state updates to rAF cadence (~60fps) so rapid token chunks
+      // don't trigger a React re-render per token.
+      let rafScheduled = false;
+      const flush = () => {
+        rafScheduled = false;
+        const current = fullResponse;
+        useChatStore.setState(s => ({
+          messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: current } : m),
+        }));
+      };
       for await (const chunk of stream) {
         fullResponse += chunk.choices[0]?.delta?.content || '';
-        useChatStore.setState(s => ({
-          messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: fullResponse } : m),
-        }));
+        if (!rafScheduled) {
+          rafScheduled = true;
+          requestAnimationFrame(flush);
+        }
       }
+      // Final flush in case the last frame hasn't fired yet
+      flush();
 
       await supabase.from('messages').insert([
         { id: userMsg.id, nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: userMsg.createdAt },
@@ -139,14 +155,22 @@ export function ChatPane({ width = 320 }: { width?: number }) {
       });
 
       await useDagStore.getState().updateNodeContent(currentNodeId, fullResponse);
-    } catch {
-      useChatStore.setState(s => ({
-        messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: '[Error generating response]' } : m),
-      }));
+    } catch (err: unknown) {
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (!isAbort) {
+        useChatStore.setState(s => ({
+          messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: '[Error generating response]' } : m),
+        }));
+      }
     } finally {
+      abortRef.current = null;
       setIsGenerating(false);
       clearContext();
     }
+  };
+
+  const handleStop = () => {
+    abortRef.current?.abort();
   };
 
   const allContextIds = [...new Set([...activeContextNodeIds, ...deactivatedNodeIds])];
@@ -156,7 +180,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
   if (!currentNodeId) {
     return (
       <div style={{ width, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexShrink: 0 }}>
-        <p style={{ color: '#D1D5DB', fontSize: 14 }}>Select a node</p>
+        <p style={{ color: '#D1D5DB', fontSize: 15 }}>Select a node</p>
       </div>
     );
   }
@@ -165,7 +189,7 @@ export function ChatPane({ width = 320 }: { width?: number }) {
     <div style={{ width, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
       {/* Node header */}
       <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid #F3F4F6' }}>
-        <p style={{ fontSize: 14, fontWeight: 500, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ fontSize: 15, fontWeight: 500, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {currentNode?.title || 'Untitled'}
         </p>
       </div>
@@ -181,8 +205,8 @@ export function ChatPane({ width = 320 }: { width?: number }) {
         />
       )}
 
-      <MessageList messages={messages} isGenerating={isGenerating} />
-      <ChatInput value={currentInput} onChange={handleInputChange} onSend={handleSend} isGenerating={isGenerating} gripLevel={gripLevel} onGripChange={setGripLevel} />
+      <SwipeContainer messages={messages} isGenerating={isGenerating} />
+      <ChatInput value={currentInput} onChange={handleInputChange} onSend={handleSend} onStop={handleStop} isGenerating={isGenerating} gripLevel={gripLevel} onGripChange={setGripLevel} />
     </div>
   );
 }

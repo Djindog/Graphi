@@ -13,7 +13,7 @@ import type { ToastMessage } from './components/Toast';
 import type { Project } from './types';
 
 const MIN_CHAT_WIDTH = 240;
-const DEFAULT_CHAT_WIDTH = 360;
+const DEFAULT_CHAT_WIDTH = 500;
 
 function getSidebarWidth(collapsed: boolean) {
   return collapsed ? 48 : 220;

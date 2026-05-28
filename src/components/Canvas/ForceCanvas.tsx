@@ -8,9 +8,11 @@ interface Props {
   activeContextNodeIds: string[];
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
+  dangerNodeIds: string[];
+  renamingNodeId: string | null;
   onNodeClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
-  onNodeMenuClick: (node: Node, screenX: number, screenY: number) => void;
+  onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
 }
 
 const BLUE = '#2563EB';
@@ -31,7 +33,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -254,6 +256,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       const isSelected = nodeId === activeNodeId;
       const isActive = activeContextNodeIds.includes(nodeId);
       const isDeactivated = deactivatedNodeIds.includes(nodeId);
+      const inDanger = dangerNodeIds.includes(nodeId);
 
       let fill = '#FFFFFF';
       let stroke = GRAY;
@@ -261,7 +264,9 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       let opacity = 1;
       let glow = false;
 
-      if (isSelected) {
+      if (inDanger) {
+        fill = '#FEF2F2'; stroke = '#FCA5A5'; strokeWidth = 2; opacity = 1;
+      } else if (isSelected) {
         fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 3.5; opacity = 1; glow = true;
       } else if (isActive) {
         fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 2; opacity = 1; glow = true;
@@ -312,7 +317,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
     svg.select('#arrowhead polygon')
       .attr('fill', GRAY);
 
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds]);
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds]);
 
   const hoveredNodeObj = hoveredNode ? nodes.find(n => n.id === hoveredNode.id) : null;
 
@@ -326,7 +331,8 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
           onMouseEnter={() => { /* keep visible */ }}
           onClick={(e) => {
             e.stopPropagation();
-            onNodeMenuClickRef.current(hoveredNodeObj, hoveredNode.screenX + 16, hoveredNode.screenY - 8);
+            const r = NODE_RADIUS * 2;
+            onNodeMenuClickRef.current(hoveredNodeObj, hoveredNode.screenX + 16, hoveredNode.screenY - 8, hoveredNode.screenX - NODE_RADIUS, hoveredNode.screenY - NODE_RADIUS, r, r);
           }}
           style={{
             position: 'fixed',

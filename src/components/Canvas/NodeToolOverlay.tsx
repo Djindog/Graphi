@@ -11,7 +11,9 @@ interface Props {
   rootNodeId: string | null;
   projects: Project[];
   onClose: () => void;
-  onFork: (newNode: Node) => void;
+  onBranch: (newNode: Node) => void;
+  onDangerHover: (ids: string[]) => void;
+  onRenameRequest: (node: Node) => void;
 }
 
 const ForkIcon = () => (
@@ -51,12 +53,10 @@ const TransplantIcon = () => (
   </svg>
 );
 
-export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose, onFork }: Props) {
-  const { addNode, deleteNode, renameNode, getDescendants, getAllAncestors, nodes } = useDagStore();
+export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose, onBranch, onDangerHover, onRenameRequest }: Props) {
+  const { addNode, deleteNode, getDescendants, getAllAncestors, nodes } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
-  const [renaming, setRenaming] = useState(false);
-  const [renameVal, setRenameVal] = useState(node.title || '');
   const [transplantOpen, setTransplantOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -70,11 +70,11 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
 
   const isRoot = node.id === rootNodeId;
 
-  const fork = async () => {
+  const branch = async () => {
     const ancestors = getAllAncestors(node.id).map(n => n.id);
     if (ancestors.includes(node.id)) return;
     const newNode = await addNode(null, node.id, node.projectId);
-    onFork(newNode);
+    onBranch(newNode);
     await setCurrentNode(newNode.id);
     onClose();
   };
@@ -100,12 +100,6 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
     for (const d of descendants) await deleteNode(d.id);
     if (currentNodeId === node.id && node.parentId) await setCurrentNode(node.parentId);
     await deleteNode(node.id);
-    onClose();
-  };
-
-  const doRename = async () => {
-    if (renameVal.trim()) await renameNode(node.id, renameVal.trim());
-    setRenaming(false);
     onClose();
   };
 
@@ -142,17 +136,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
         padding: 4, minWidth: 148,
       }}
     >
-      {renaming ? (
-        <div style={{ display: 'flex', gap: 6, padding: '4px 2px' }}>
-          <input
-            autoFocus
-            value={renameVal}
-            onChange={e => setRenameVal(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') doRename(); if (e.key === 'Escape') setRenaming(false); }}
-            style={{ flex: 1, background: '#F9FAFB', border: '1.5px solid #2563EB', borderRadius: 7, padding: '5px 8px', fontSize: 13, outline: 'none', minWidth: 0 }}
-          />
-        </div>
-      ) : transplantOpen ? (
+      {transplantOpen ? (
         <div>
           <p style={{ color: '#9CA3AF', fontSize: 12, padding: '4px 8px 6px', margin: 0 }}>Copy to project:</p>
           {projects.filter(p => p.id !== node.projectId).map(p => (
@@ -165,11 +149,17 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
         </div>
       ) : (
         <>
-          <Btn icon={<ForkIcon />} onClick={fork}>Fork</Btn>
-          <Btn icon={<RenameIcon />} onClick={() => setRenaming(true)}>Rename</Btn>
+          <Btn icon={<ForkIcon />} onClick={branch}>Branch</Btn>
+          <Btn icon={<RenameIcon />} onClick={() => onRenameRequest(node)}>Rename</Btn>
           <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
-          <Btn icon={<CutIcon />} onClick={cut} disabled={isRoot} danger>Cut</Btn>
-          <Btn icon={<PruneIcon />} onClick={prune} disabled={isRoot} danger>Prune</Btn>
+          <Btn icon={<CutIcon />} onClick={cut} disabled={isRoot} danger
+            onMouseEnter={() => onDangerHover([node.id])}
+            onMouseLeave={() => onDangerHover([])}
+          >Remove (Keep Children)</Btn>
+          <Btn icon={<PruneIcon />} onClick={prune} disabled={isRoot} danger
+            onMouseEnter={() => onDangerHover([node.id, ...getDescendants(node.id).map(n => n.id)])}
+            onMouseLeave={() => onDangerHover([])}
+          >Delete Subtree</Btn>
           <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
           <Btn icon={<TransplantIcon />} onClick={() => setTransplantOpen(true)} muted>Transplant</Btn>
         </>
@@ -178,13 +168,15 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, onClose,
   );
 }
 
-function Btn({ icon, onClick, children, disabled, danger, muted }: {
+function Btn({ icon, onClick, children, disabled, danger, muted, onMouseEnter, onMouseLeave }: {
   icon?: React.ReactNode;
   onClick: () => void;
   children: React.ReactNode;
   disabled?: boolean;
   danger?: boolean;
   muted?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }) {
   return (
     <button
@@ -199,8 +191,8 @@ function Btn({ icon, onClick, children, disabled, danger, muted }: {
         transition: 'background 0.1s',
         textAlign: 'left',
       }}
-      onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = danger ? '#FEF2F2' : '#F9FAFB'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+      onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = danger ? '#FEF2F2' : '#F9FAFB'; onMouseEnter?.(); }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; onMouseLeave?.(); }}
     >
       {icon && <span style={{ flexShrink: 0, opacity: 0.7 }}>{icon}</span>}
       {children}

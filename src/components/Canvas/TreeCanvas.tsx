@@ -8,9 +8,11 @@ interface Props {
   activeContextNodeIds: string[];
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
+  dangerNodeIds: string[];
+  renamingNodeId: string | null;
   onNodeClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
-  onNodeMenuClick: (node: Node, screenX: number, screenY: number) => void;
+  onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
 }
 
 const NODE_W = 160;
@@ -35,7 +37,7 @@ function expandedWidth(title: string | null): number {
   return Math.min(Math.max(NODE_W, needed), MAX_W);
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, renamingNodeId, onNodeClick, onNodeDoubleClick, onNodeMenuClick, onRenameRequest }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +46,11 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     const isActive = activeContextNodeIds.includes(nodeId);
     const isDeactivated = deactivatedNodeIds.includes(nodeId);
     const inContextMode = activeContextNodeIds.length > 0 || deactivatedNodeIds.length > 0;
+    const inDanger = dangerNodeIds.includes(nodeId);
 
+    if (inDanger) {
+      return { stroke: '#FCA5A5', strokeWidth: 2, fill: '#FEF2F2', opacity: 1, glow: false, textColor: '#EF4444' };
+    }
     if (isSelected) {
       return { stroke: BLUE, strokeWidth: 4, fill: '#EFF6FF', opacity: 1, glow: true, textColor: '#1D4ED8' };
     }
@@ -59,7 +65,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       return { stroke: GRAY, strokeWidth: 1.5, fill: '#FFFFFF', opacity: 0.35, glow: false, textColor: '#9CA3AF' };
     }
     return { stroke: GRAY, strokeWidth: 1.5, fill: '#FFFFFF', opacity: 1, glow: false, textColor: '#374151' };
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds]);
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, dangerNodeIds]);
 
   // A colored edge requires BOTH endpoints to be colored — no dangling edges.
   const getEdgeStyle = useCallback((sourceId: string, targetId: string) => {
@@ -189,7 +195,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       // Text: full title if current, truncated otherwise
       g.append('text')
         .attr('class', 'node-label')
-        .attr('x', isCurrent ? expW / 2 : (NODE_W - 20) / 2)
+        .attr('x', isCurrent ? expW / 2 : NODE_W / 2)
         .attr('y', NODE_H / 2)
         .attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
         .attr('fill', ns.textColor)
@@ -237,9 +243,12 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           g.select<SVGRectElement>('rect.glow-bg').transition().duration(140)
             .attr('width', expW);
         }
-        g.select<SVGTextElement>('text.node-label').transition().duration(140)
+        g.select<SVGTextElement>('text.node-label')
+          .transition().duration(140)
           .attr('x', expW / 2)
-          .text(nodeData.title || 'Untitled');
+          .on('end', function() {
+            d3.select(this).text(nodeData.title || 'Untitled');
+          });
         dotMenu.transition().duration(140)
           .attr('transform', `translate(${expW - NODE_W},0)`);
       });
@@ -256,7 +265,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
             .attr('width', NODE_W);
         }
         g.select<SVGTextElement>('text.node-label').transition().duration(140)
-          .attr('x', (NODE_W - 20) / 2)
+          .attr('x', NODE_W / 2)
           .text(() => {
             const t = nodeData.title || 'Untitled';
             return t.length > 16 ? t.slice(0, 16) + '…' : t;
@@ -270,10 +279,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         event.stopPropagation();
         const svgRect = svgRef.current!.getBoundingClientRect();
         const transform = d3.zoomTransform(svgRef.current!);
-        // When dotMenu is visible the node is always at expW
-        const screenX = svgRect.left + transform.applyX(d.x + expW / 2) + 12;
-        const screenY = svgRect.top + transform.applyY(d.y - NODE_H / 2);
-        onNodeMenuClick(nodeData, screenX, screenY);
+        const scaledW = expW * transform.k;
+        const scaledH = NODE_H * transform.k;
+        const nodeScreenX = svgRect.left + transform.applyX(d.x - expW / 2);
+        const nodeScreenY = svgRect.top + transform.applyY(d.y - NODE_H / 2);
+        const overlayX = svgRect.left + transform.applyX(d.x + expW / 2) + 12;
+        const overlayY = nodeScreenY;
+        onNodeMenuClick(nodeData, overlayX, overlayY, nodeScreenX, nodeScreenY, scaledW, scaledH);
       });
 
       // Main node body: single vs double click
@@ -296,7 +308,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     });
 
     return () => { timers.forEach(t => clearTimeout(t)); };
-  }, [nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick, getNodeStyle, getEdgeStyle]);
+  }, [nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, onNodeClick, onNodeDoubleClick, onNodeMenuClick, getNodeStyle, getEdgeStyle]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%' }}>

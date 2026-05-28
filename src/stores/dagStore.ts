@@ -12,6 +12,9 @@ interface DagState {
   getNodesByProject: (projectId: string) => Node[];
   getAllAncestors: (nodeId: string) => Node[];
   getDescendants: (nodeId: string) => Node[];
+  getSiblings: (nodeId: string) => Node[];
+  getPrevSibling: (nodeId: string) => Node | null;
+  getNextSibling: (nodeId: string) => Node | null;
   setFromSupabase: (nodes: Node[]) => void;
   subscribeToProjectNodes: (projectId: string) => () => void;
 }
@@ -21,12 +24,15 @@ export const useDagStore = create<DagState>((set, get) => ({
 
   addNode: async (title, parentId, projectId) => {
     const now = new Date().toISOString();
+    const siblings = get().nodes.filter(n => n.parentId === parentId && n.projectId === projectId);
+    const order = siblings.length > 0 ? Math.max(...siblings.map(n => n.order ?? 0)) + 1 : 0;
     const node: Node = {
       id: uuidv4(),
       projectId,
       title,
       content: null,
       parentId,
+      order,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -81,6 +87,37 @@ export const useDagStore = create<DagState>((set, get) => ({
       queue.push(...children.map(c => c.id));
     }
     return result;
+  },
+
+  getSiblings: (nodeId) => {
+    const { nodes } = get();
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return [];
+    return nodes
+      .filter(n => n.parentId === node.parentId && n.projectId === node.projectId && n.id !== nodeId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  },
+
+  getPrevSibling: (nodeId) => {
+    const { nodes } = get();
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return null;
+    const siblings = nodes
+      .filter(n => n.parentId === node.parentId && n.projectId === node.projectId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = siblings.findIndex(n => n.id === nodeId);
+    return idx > 0 ? siblings[idx - 1] : null;
+  },
+
+  getNextSibling: (nodeId) => {
+    const { nodes } = get();
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return null;
+    const siblings = nodes
+      .filter(n => n.parentId === node.parentId && n.projectId === node.projectId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = siblings.findIndex(n => n.id === nodeId);
+    return idx < siblings.length - 1 ? siblings[idx + 1] : null;
   },
 
   setFromSupabase: (nodes) => set({ nodes }),

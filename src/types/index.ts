@@ -12,6 +12,7 @@ export interface Node {
   title: string | null;
   content: string | null;
   parentId: string | null;
+  order: number;
   version: number;
   createdAt: string;
   updatedAt: string;
