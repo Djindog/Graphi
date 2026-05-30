@@ -32,7 +32,7 @@ export function MessageList({ messages, isGenerating, scrollRef }: Props) {
           </div>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Type to start this thread</p>
-            <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Ask anything. Branch off to explore a tangent without losing your place.</p>
+            <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Ask anything.</p>
           </div>
         </div>
       )}
