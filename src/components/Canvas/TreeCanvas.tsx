@@ -26,7 +26,6 @@ const BLUE_FADED = '#93C5FD';
 const GRAY = '#E5E7EB';
 
 const SHADOW_NODE = '0 2px 6px rgba(17,24,39,0.08), 0 1px 2px rgba(17,24,39,0.04)';
-const SHADOW_HOVER = '0 6px 16px rgba(17,24,39,0.12), 0 2px 4px rgba(17,24,39,0.06)';
 
 interface TreeNode {
   data: Node;
