@@ -1,8 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root {
   height: 100%;
@@ -15,6 +14,9 @@ body {
   background: #F5F6F8;
   color: #111827;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -23,22 +25,26 @@ body {
   width: 100vw;
 }
 
-/* Markdown rendered inside assistant chat bubbles */
+/* ── Custom scrollbars ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+/* ── Markdown rendered inside assistant chat bubbles ── */
 .md-content { all: unset; display: block; }
 .md-content p { margin: 0 0 0.6em; }
 .md-content p:last-child { margin-bottom: 0; }
-.md-content strong { font-weight: 700; }
+.md-content strong { font-weight: 600; }
 .md-content em { font-style: italic; }
 .md-content h1, .md-content h2, .md-content h3,
 .md-content h4, .md-content h5, .md-content h6 {
-  font-weight: 700; margin: 0.75em 0 0.3em;
+  font-weight: 600; margin: 0.75em 0 0.3em;
 }
-.md-content h1 { font-size: 1.25em; }
-.md-content h2 { font-size: 1.1em; }
+.md-content h1 { font-size: 1.2em; }
+.md-content h2 { font-size: 1.08em; }
 .md-content h3 { font-size: 1em; }
-.md-content ul, .md-content ol {
-  margin: 0.4em 0 0.6em; padding-left: 1.5em;
-}
+.md-content ul, .md-content ol { margin: 0.4em 0 0.6em; padding-left: 1.5em; }
 .md-content li { margin-bottom: 0.25em; }
 .md-content code {
   font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
@@ -54,11 +60,7 @@ body {
   overflow-x: auto;
   margin: 0.5em 0;
 }
-.md-content pre code {
-  background: none;
-  padding: 0;
-  font-size: 0.88em;
-}
+.md-content pre code { background: none; padding: 0; font-size: 0.88em; }
 .md-content blockquote {
   border-left: 3px solid #D1D5DB;
   margin: 0.5em 0;
@@ -70,3 +72,14 @@ body {
 .md-content table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
 .md-content th, .md-content td { border: 1px solid #E5E7EB; padding: 4px 8px; text-align: left; }
 .md-content th { background: rgba(0,0,0,0.04); font-weight: 600; }
+
+/* ── Animations ── */
+@keyframes gspin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes gtoast {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

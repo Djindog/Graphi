@@ -12,7 +12,9 @@ interface Props {
 export function ContextSummary({ ancestors, referencedIds, recommendedIds, activeIds, nodeMap, onToggle }: Props) {
   const isActive = (id: string) => activeIds.includes(id);
 
-  const NodeChip = ({ id }: { id: string }) => {
+  const allIds = [...new Set([...ancestors.map(n => n.id), ...referencedIds, ...recommendedIds])];
+
+  const Chip = ({ id }: { id: string }) => {
     const node = nodeMap.get(id);
     if (!node) return null;
     const active = isActive(id);
@@ -21,17 +23,23 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
         onClick={() => onToggle(id)}
         title={active ? 'Click to deactivate' : 'Click to reactivate'}
         style={{
-          display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left',
-          padding: '4px 6px', borderRadius: 6, border: 'none', cursor: 'pointer',
-          background: 'transparent', fontSize: 13,
-          color: active ? '#2563EB' : '#9CA3AF',
-          opacity: active ? 1 : 0.6,
-          transition: 'all 0.1s',
+          display: 'inline-flex', alignItems: 'center', gap: 7,
+          padding: '7px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 13,
+          maxWidth: 200, overflow: 'hidden',
+          background: active ? '#EFF6FF' : '#fff',
+          border: `1px solid ${active ? '#2563EB' : '#E5E7EB'}`,
+          color: active ? '#1D4ED8' : '#6B7280',
+          fontWeight: active ? 500 : 400,
+          transition: 'all 0.12s',
+          fontFamily: 'inherit',
+          flexShrink: 0,
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
       >
-        <span style={{ fontSize: 7, lineHeight: 1 }}>{active ? '●' : '○'}</span>
+        <span style={{
+          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+          background: active ? '#2563EB' : 'transparent',
+          border: active ? 'none' : '1.5px solid #D1D5DB',
+        }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {node.title || 'Untitled'}
         </span>
@@ -39,23 +47,14 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
     );
   };
 
-  const Section = ({ label, ids }: { label: string; ids: string[] }) => (
-    <div style={{ marginBottom: 8 }}>
-      <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 4px' }}>
-        {label}
-      </p>
-      {ids.map(id => <NodeChip key={id} id={id} />)}
-    </div>
-  );
-
   return (
-    <div style={{ borderBottom: '1px solid #F3F4F6', padding: '10px 10px 6px', maxHeight: 160, overflowY: 'auto', background: '#FAFAFA' }}>
-      <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 4px' }}>
-        Context — click to toggle
+    <div style={{ borderBottom: '1px solid #F3F4F6', padding: '12px 16px 10px', background: '#FAFAFA' }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', margin: '0 0 9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Lineage · click to toggle
       </p>
-      {ancestors.length > 0 && <Section label="Lineage" ids={ancestors.map(n => n.id)} />}
-      {referencedIds.length > 0 && <Section label="Referenced" ids={referencedIds} />}
-      {recommendedIds.length > 0 && <Section label="Recommended" ids={recommendedIds} />}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+        {allIds.map(id => <Chip key={id} id={id} />)}
+      </div>
     </div>
   );
 }

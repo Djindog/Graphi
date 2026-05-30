@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { GitBranch, CircleDot, MousePointerClick } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
@@ -193,18 +194,36 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
   if (!currentNodeId) {
     return (
       <div style={{ width, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexShrink: 0 }}>
-        <p style={{ color: '#D1D5DB', fontSize: 15 }}>Select a node</p>
+        <div style={{ textAlign: 'center', padding: '0 24px' }}>
+          <div style={{ color: '#D1D5DB', marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+            <MousePointerClick size={32} strokeWidth={1.5} />
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Select a node</p>
+          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Click any node on the canvas to open its thread.</p>
+        </div>
       </div>
     );
   }
 
+  const isRoot = !currentNode?.parentId;
+
   return (
     <div style={{ width, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
       {/* Node header */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid #F3F4F6' }}>
-        <p style={{ fontSize: 15, fontWeight: 500, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {currentNode?.title || 'Untitled'}
-        </p>
+      <div style={{ padding: '15px 16px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {isRoot
+            ? <CircleDot size={15} strokeWidth={2} color="#2563EB" />
+            : <GitBranch size={15} strokeWidth={2} color="#2563EB" />}
+        </div>
+        <div style={{ overflow: 'hidden' }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0, letterSpacing: '-0.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {currentNode?.title || 'Untitled'}
+          </p>
+          <p style={{ fontSize: 12, color: '#9CA3AF', margin: '2px 0 0' }}>
+            {isRoot ? 'Root thread' : 'Branch thread'}
+          </p>
+        </div>
       </div>
 
       {allContextIds.length > 0 && (
