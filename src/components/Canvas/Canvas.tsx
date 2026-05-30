@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { GitFork, Share2 } from 'lucide-react';
 import { useGraphStore } from '../../stores/graphStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
@@ -119,29 +120,45 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
       style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F0F2F5', position: 'relative', overflow: 'hidden' }}
       onClick={() => { if (renameTarget) commitRename(); }}
     >
+      {/* Dot-grid backdrop — zIndex 0 so SVG nodes render above it */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+        backgroundImage: 'radial-gradient(#D1D5DB 1.1px, transparent 1.1px)',
+        backgroundSize: '22px 22px', opacity: 0.5,
+      }} />
+
       {/* Toolbar */}
-      <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 10, display: 'flex', gap: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '3px 4px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        {(['tree', 'force'] as const).map(mode => (
+      <div style={{
+        position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 3,
+        background: '#fff', border: '1px solid #E5E7EB', borderRadius: 11,
+        padding: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+      }}>
+        {([['tree', <GitFork key="tf" size={14} strokeWidth={2} />], ['force', <Share2 key="ff" size={14} strokeWidth={2} />]] as [string, React.ReactNode][]).map(([mode, icon]) => (
           <button
-            key={mode}
-            onClick={() => setGraphMode(mode)}
+            key={mode as string}
+            onClick={() => setGraphMode(mode as 'tree' | 'force')}
             style={{
-              padding: '4px 12px', fontSize: 13, borderRadius: 7, border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer',
               background: graphMode === mode ? '#111827' : 'transparent',
               color: graphMode === mode ? '#fff' : '#6B7280',
               fontWeight: graphMode === mode ? 500 : 400,
-              transition: 'all 0.15s',
-              textTransform: 'capitalize',
+              transition: 'all 0.15s', textTransform: 'capitalize', fontFamily: 'inherit',
             }}
           >
-            {mode}
+            {icon}
+            {mode as string}
           </button>
         ))}
       </div>
 
       {nodes.length === 0 ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9CA3AF', fontSize: 14 }}>
-          Select or create a project
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 12, position: 'relative', zIndex: 1 }}>
+          <div style={{ color: '#D1D5DB' }}><GitFork size={36} strokeWidth={1.5} /></div>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Start your first thread</p>
+            <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Every project begins as one node. Type below to grow the tree.</p>
+          </div>
         </div>
       ) : graphMode === 'tree' ? (
         <TreeCanvas

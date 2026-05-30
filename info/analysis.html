@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Graphi — HCI / UX / Design Analysis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #F8F9FA;
+      --surface: #FFFFFF;
+      --border: #E5E7EB;
+      --border-light: #F3F4F6;
+      --text: #111827;
+      --text-secondary: #6B7280;
+      --text-muted: #9CA3AF;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-mid: #DBEAFE;
+      --red: #EF4444;
+      --red-light: #FEF2F2;
+      --yellow: #F59E0B;
+      --yellow-light: #FFFBEB;
+      --green: #10B981;
+      --green-light: #ECFDF5;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 24px rgba(0,0,0,0.10);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* ─── Layout ─────────────────────────────────────────────────── */
+    .wrapper {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 48px;
+    }
+
+    .page-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .page-header p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      max-width: 560px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    .tag-blue { background: var(--blue-light); color: var(--blue); }
+    .tag-gray { background: var(--border-light); color: var(--text-secondary); }
+
+    /* ─── Section ────────────────────────────────────────────────── */
+    .section {
+      margin-bottom: 48px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--text);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+
+    /* ─── Issue card ─────────────────────────────────────────────── */
+    .issue {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.15s;
+    }
+
+    .issue:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .issue-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .priority-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+
+    .priority-high { background: var(--red); }
+    .priority-med  { background: var(--yellow); }
+    .priority-low  { background: var(--green); }
+
+    .issue-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+    }
+
+    .issue-id {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      background: var(--border-light);
+      padding: 2px 7px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .issue-body {
+      padding-left: 22px;
+    }
+
+    .problem-block, .solution-block {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .problem-block {
+      background: var(--red-light);
+      border-left: 3px solid var(--red);
+      color: #7F1D1D;
+    }
+
+    .problem-block strong, .solution-block strong {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: 5px;
+      opacity: 0.7;
+    }
+
+    .solution-block {
+      background: var(--green-light);
+      border-left: 3px solid var(--green);
+      color: #064E3B;
+    }
+
+    .solution-block ul {
+      padding-left: 16px;
+      margin: 4px 0 0;
+    }
+
+    .solution-block li {
+      margin-bottom: 4px;
+    }
+
+    /* ─── Priority matrix ────────────────────────────────────────── */
+    .matrix {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .matrix table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .matrix th {
+      background: var(--border-light);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .matrix td {
+      padding: 11px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+
+    .matrix tr:last-child td { border-bottom: none; }
+    .matrix tr:hover td { background: var(--bg); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .badge-high   { background: var(--red-light);    color: var(--red); }
+    .badge-med    { background: var(--yellow-light);  color: #92400E; }
+    .badge-low    { background: var(--green-light);   color: #065F46; }
+    .badge-effort-low  { background: var(--blue-light);  color: var(--blue); }
+    .badge-effort-med  { background: #F3F4F6; color: #374151; }
+    .badge-effort-high { background: #FDF2F8; color: #9D174D; }
+
+    /* ─── TOC ────────────────────────────────────────────────────── */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      box-shadow: var(--shadow);
+    }
+
+    .toc h2 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .toc ol {
+      padding-left: 20px;
+      column-count: 2;
+      column-gap: 24px;
+    }
+
+    .toc li {
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .toc a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .toc a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .toc ol { column-count: 1; }
+      .page-header h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="page-header">
+    <h1>Graphi — HCI / UX / Design Analysis</h1>
+    <p>A comprehensive review of usability, interaction design, visual design, accessibility, and performance across the full application.</p>
+    <div style="margin-top: 14px;">
+      <span class="tag tag-blue">HCI</span>
+      <span class="tag tag-blue">UX</span>
+      <span class="tag tag-blue">Interaction Design</span>
+      <span class="tag tag-gray">React 18 + D3 + Zustand</span>
+      <span class="tag tag-gray">Branching Chat App</span>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#s1">Learnability</a></li>
+      <li><a href="#s2">Feedback &amp; System Status</a></li>
+      <li><a href="#s3">Navigation &amp; Spatial Orientation</a></li>
+      <li><a href="#s4">Context Management</a></li>
+      <li><a href="#s5">Chat Pane UX</a></li>
+      <li><a href="#s6">Node Operations</a></li>
+      <li><a href="#s7">Sidebar</a></li>
+      <li><a href="#s8">Visual Design</a></li>
+      <li><a href="#s9">Accessibility</a></li>
+      <li><a href="#s10">Performance &amp; Responsiveness</a></li>
+      <li><a href="#matrix">Priority Matrix</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. Learnability -->
+  <div class="section" id="s1">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <div class="section-title">Learnability</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-high"></div>
+        <div class="issue-title">The core mechanic is invisible</div>
+        <div class="issue-id">1.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The defining feature — blue nodes on the canvas represent the active context window — is never explained. A new user sees blue nodes appear, doesn't know what they mean, and can't connect the canvas to what the AI receives. The 3-stage pipeline (type → curate → send) has zero onboarding.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>One-time walkthrough overlay on first use explaining the 3 stages</li>
+            <li>Inline ghost text in the input: "Nodes highlighted on canvas = context sent to AI"</li>
+            <li>Dismissible banner in chat pane on first node selection</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-high"></div>
+        <div class="issue-title">Grip level is unexplained jargon</div>
+        <div class="issue-id">1.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          "Grip off/low/mid/high" is meaningless to new users. There is no explanation that it controls RAG retrieval depth, what "off" means (no semantic search), or what the tradeoff between levels is.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Tooltip on hover: "Controls how many semantically similar nodes are pulled into context from across your project"</li>
+            <li>An info icon (ⓘ) next to the Grip label</li>
+            <li>Alternative label: "Recall: None / Broad / Focused / Precise"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Swipe gestures are fully undiscoverable</div>
+        <div class="issue-id">1.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Vertical overscroll to create a new child node, horizontal swipe to navigate siblings — powerful features with no affordance, hint, or tooltip. A user will never find them accidentally.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Subtle animated arrow at the bottom of chat scroll area when at the bottom: "↓ Swipe to branch"</li>
+            <li>First-use tip shown once after first message is sent</li>
+            <li>Keyboard shortcut hint visible in the input bar footer</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Node operations are hover-only, no right-click</div>
+        <div class="issue-id">1.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The context menu (branch, rename, fold, cut, prune, transplant) only appears via the ··· hover button. Right-click is not supported. No visual cue that nodes are interactive beyond clicking.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Support right-click to open the same context menu</li>
+            <li>Faint "right-click or ···" hint on first hover of a node</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Feedback -->
+  <div class="section" id="s2">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <div class="section-title">Feedback &amp; System Status</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-high"></div>
+        <div class="issue-title">Stage 0 context detection runs silently</div>
+        <div class="issue-id">2.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          When the user types, reference detection and RAG run in the background with no visible indicator. The canvas update can lag 500ms+ with no feedback. The user doesn't know if the system is working or stuck.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Subtle pulsing ring or spinner on the input border while Stage 0 is active</li>
+            <li>Small "Analyzing…" microtext near the Grip controls during detection</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No micro-feedback when context nodes are toggled</div>
+        <div class="issue-id">2.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Clicking a blue node to deactivate it fades it on canvas silently. The interaction is quiet and can feel accidental.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Micro-animation on the dot indicator in ContextSummary when toggled (pulse or color flip)</li>
+            <li>Transient count badge: "3 of 5 context nodes active" near the context panel header</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Snapshot save is completely invisible</div>
+        <div class="issue-id">2.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          After every generation, a snapshot is auto-saved to Supabase. The user has no idea this happened, what was saved, or that snapshots exist at all.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Subtle "Saved" microtext or checkmark that fades in/out after save completes</li>
+            <li>Sets correct expectations for future snapshot browsing features</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Auto-generated title change is unexplained</div>
+        <div class="issue-id">2.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          After the first message, the node title is silently updated by AI. The user sees the title change in the canvas but has no explanation of why or when.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Brief highlight or fade transition on the node when its title changes</li>
+            <li>A subtle tooltip: "Title auto-generated from your first message"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Navigation -->
+  <div class="section" id="s3">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <div class="section-title">Navigation &amp; Spatial Orientation</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No way to re-center on the selected node</div>
+        <div class="issue-id">3.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          After panning/zooming the canvas, there is no button to re-center on the active node. The user must hunt manually.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>"Center on selected node" button in the canvas toolbar</li>
+            <li>Auto-center when active node changes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Switching layout modes loses spatial memory</div>
+        <div class="issue-id">3.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Switching between tree and force modes rebuilds the full layout. In force mode, physics drift makes it impossible to build a reliable mental map.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Persist force-mode node positions across mode switches</li>
+            <li>Consider a "manual" layout mode where users can pin positions</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No breadcrumb / lineage path in chat pane</div>
+        <div class="issue-id">3.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The chat pane header shows only the current node title. There is no breadcrumb showing the path from root to the current node (e.g., "Root > Design > UI Exploration"). Context about where you are in the tree is lost.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Collapsible breadcrumb trail above the chat header</li>
+            <li>Hovering over the node title shows ancestors in a tooltip</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No project name visible when sidebar is collapsed</div>
+        <div class="issue-id">3.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          When the sidebar is collapsed (48px wide), the active project name disappears entirely. The user sees only the canvas and chat with no orientation landmark.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Show active project name in the canvas toolbar when sidebar is collapsed</li>
+            <li>Or a small label above the tree/force mode toggle</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Context Management -->
+  <div class="section" id="s4">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <div class="section-title">Context Management (ContextSummary Panel)</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Context panel appears abruptly, pushing content</div>
+        <div class="issue-id">4.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The ContextSummary panel appears between the node header and message list, pushing the message list down with no animation. Especially jarring during fast typing since Stage 0 fires 500ms after the keypress.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Animate the panel in with a smooth height transition (max-height CSS transition)</li>
+            <li>Consider a slide-in from above that overlays rather than displacing content</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-high"></div>
+        <div class="issue-title">Section labels "Lineage / Referenced / Recommended" are unexplained</div>
+        <div class="issue-id">4.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The three context categories are meaningful to the developer but opaque to users. "Lineage" especially — that it means all ancestors back to root — is non-obvious.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Add (ⓘ) tooltips on each section label</li>
+            <li>"Lineage: parent nodes back to root" / "Referenced: nodes you mentioned by name" / "Recommended: semantically similar nodes"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Toggle affordance in the chip list is ambiguous</div>
+        <div class="issue-id">4.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The ● / ○ dot indicator is 7px and the hover state is only a background tint. It's not obviously a toggle control.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Use a larger, more iconographic indicator (checkbox, eye icon, or strike-through on inactive)</li>
+            <li>Show explicit tooltip: "Click to exclude from context" / "Click to include"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">No way to manually add arbitrary nodes to context</div>
+        <div class="issue-id">4.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Context is limited to lineage + detected references + RAG recommendations. A user who wants to manually include a specific node can't — they would have to mention it by name in their message.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>"Pin to context" option in the node's ··· menu — forces it into active context for the next send</li>
+            <li>A search/autocomplete input in the ContextSummary panel to manually add nodes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Chat Pane -->
+  <div class="section" id="s5">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <div class="section-title">Chat Pane UX</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No visual transition when switching nodes</div>
+        <div class="issue-id">5.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Switching nodes replaces the message history instantly. There's no animation indicating the context shifted, which can be disorienting.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Brief fade or slide transition on the message list when switching nodes</li>
+            <li>Small "Switched to: [Node Title]" system message at the top of the new thread</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Empty state for new nodes provides no orientation</div>
+        <div class="issue-id">5.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          "Type to start this thread…" is minimal. For a newly branched node, the user has no context about where they are relative to the parent.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Show parent node's last message or summary: "Branched from: [parent title] — [last message excerpt]"</li>
+            <li>Include a "View parent thread" link in the empty state</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Send button and Stop button are separate confusing controls</div>
+        <div class="issue-id">5.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          During generation, the send button shows a spinner but the stop control is a separate circle that appears next to it. Two simultaneous buttons for one action is confusing.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Transform the send button into a stop button during generation (single control, dual state) — the common pattern in modern chat UIs like Claude, ChatGPT</li>
+            <li>Or enlarge the stop button with a clear label on first appearance</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Textarea is fixed height, wastes space for short inputs</div>
+        <div class="issue-id">5.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          rows={3} is always 3 rows tall regardless of input length. This wastes vertical space in the already constrained chat pane for typical one-line queries.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Auto-resize textarea to fit content, starting at 1 row and growing to a max of 6</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No copy button on assistant messages</div>
+        <div class="issue-id">5.5</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          There is no way to copy an assistant message other than manually selecting text. This is a baseline affordance in every modern chat UI.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Show a small copy icon on hover over assistant message bubbles</li>
+            <li>Alternatively, copy the raw markdown text (not rendered HTML)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Node Operations -->
+  <div class="section" id="s6">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <div class="section-title">Node Operations (NodeToolOverlay)</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-high"></div>
+        <div class="issue-title">Destructive operations are one click away with no undo</div>
+        <div class="issue-id">6.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          "Delete Subtree" (prune) shows a browser confirm() dialog. "Remove (Keep Children)" (cut) executes immediately with no confirmation at all. Both are irreversible with no undo path.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Add a confirm step to the "cut" operation (currently missing)</li>
+            <li>Replace browser confirm() with a custom in-overlay confirmation — "Are you sure? This can't be undone" in the app's visual language</li>
+            <li>Add a brief undo toast: "Subtree deleted — Undo" (5-second window) that can reverse the operation</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">"Remove (Keep Children)" is confusing terminology</div>
+        <div class="issue-id">6.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Users expect "delete" to remove everything. This operation splices the node out and re-parents children, which requires understanding the data model to predict the outcome.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Rename to "Splice out" or "Remove node only" with a sub-label in a tooltip</li>
+            <li>Move the parenthetical explanation to a hover tooltip rather than the button label</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Overlay Y-clamp uses a fixed height estimate</div>
+        <div class="issue-id">6.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The Y-axis clamp uses a hardcoded value of 260px for the overlay height. If the overlay grows (e.g., transplant submenu with many projects), it can overflow at the bottom of the screen.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Measure the actual rendered overlay height and use that for clamping</li>
+            <li>Or apply a max-height with internal scroll on the content area</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Sidebar -->
+  <div class="section" id="s7">
+    <div class="section-header">
+      <div class="section-number">7</div>
+      <div class="section-title">Sidebar</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Pinned projects are lost on page refresh</div>
+        <div class="issue-id">7.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Pinned projects are stored in useState. They are lost on every page refresh. This is a fake feature that sets false expectations of persistence.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Persist pins to localStorage as a quick fix</li>
+            <li>Or persist to the profiles table in Supabase for true cross-device persistence</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Collapsed sidebar loses all project management affordances</div>
+        <div class="issue-id">7.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          When collapsed to 48px, only the ☰ hamburger icon is shown. There is no way to create a project, switch projects, or access user settings without reopening.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Icon-only quick actions in collapsed state (+ icon for new project)</li>
+            <li>Consider a hover-expand sidebar (like VS Code) instead of full collapse</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">No search when there are many projects</div>
+        <div class="issue-id">7.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          With many projects, there is no way to search or filter. Users must scroll the full list.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Search input appears at the top of the project list when there are more than 8–10 projects</li>
+            <li>Or a Cmd+K command palette for project and node search</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Project deletion uses a native browser confirm() dialog</div>
+        <div class="issue-id">7.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The browser's native confirm() dialog is visually inconsistent with the rest of the app's design language and cannot be styled.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Replace with inline confirmation inside the project menu (button turns red, second click confirms)</li>
+            <li>Or use the existing modal pattern with a custom compact confirmation variant</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Visual Design -->
+  <div class="section" id="s8">
+    <div class="section-header">
+      <div class="section-number">8</div>
+      <div class="section-title">Visual Design</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Monochrome palette lacks personality and warmth</div>
+        <div class="issue-id">8.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The app is entirely neutral — dark text, white/gray backgrounds, generic Tailwind blue for state. For a "thinking partner" tool, warmth and personality matter for retention and perceived quality.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Introduce a subtle accent color distinct from the generic #2563EB blue</li>
+            <li>Micro-animations on node creation and branch formation add delight without changing the palette</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">Canvas background is a flat, featureless gray</div>
+        <div class="issue-id">8.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The tree floats on a plain #F0F2F5 background with no visual grounding. The canvas feels empty and unpolished compared to tools in the same category (Miro, Figma, n8n, Obsidian Canvas).
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Subtle dot-grid or cross-grid pattern on the canvas background — industry standard for node editors</li>
+            <li>A very faint radial gradient from center to edges gives depth without adding noise</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Force mode nodes are too small to read or click accurately</div>
+        <div class="issue-id">8.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          11px radius circles with 10px font labels are very hard to read and require precise pointer placement. Force mode is effectively less usable than tree mode.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Increase node radius to 14–16px minimum</li>
+            <li>Use 11–12px font in force labels</li>
+            <li>Or use rectangular nodes in force mode for visual consistency with tree mode</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">No dark mode support</div>
+        <div class="issue-id">8.4</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The app is hardcoded to white/light backgrounds. There is no dark mode support, which is a standard expectation for productivity tools used for extended periods.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>CSS custom properties (already partially present) would allow a single-variable theming switch</li>
+            <li>Not urgent for MVP, but the inline-style architecture makes it harder to add later</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Accessibility -->
+  <div class="section" id="s9">
+    <div class="section-header">
+      <div class="section-number">9</div>
+      <div class="section-title">Accessibility</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Canvas interactions require a pointing device</div>
+        <div class="issue-id">9.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The D3 SVG canvas has no keyboard navigation (beyond the swipe arrow-key gestures). Users cannot tab through nodes, open the context menu with keyboard, or navigate the tree without a mouse or trackpad.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>tabindex and aria-label on D3 node groups</li>
+            <li>Arrow keys to move selection between nodes (parent/child/sibling)</li>
+            <li>Enter/Space to open the context menu on the selected node</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Color is the only indicator of context node state</div>
+        <div class="issue-id">9.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Active context = blue, deactivated = faded blue, non-context = gray. For users with color vision deficiencies, these three states may be indistinguishable.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Add a secondary indicator: dashed border for deactivated nodes, solid for active</li>
+            <li>Or use stroke patterns (e.g., strikethrough, hatching) as a secondary signal alongside color</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Focus states on interactive elements are invisible</div>
+        <div class="issue-id">9.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          All buttons and inputs have outline: 'none', suppressing standard browser focus rings. Tab navigation has no visible indicator.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Restore :focus-visible with a custom box-shadow (e.g., 0 0 0 3px rgba(37,99,235,0.4))</li>
+            <li>Audit all interactive elements for focus visibility</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. Performance -->
+  <div class="section" id="s10">
+    <div class="section-header">
+      <div class="section-number">10</div>
+      <div class="section-title">Performance &amp; Responsiveness</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">D3 tree is fully rebuilt on every state change</div>
+        <div class="issue-id">10.1</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          TreeCanvas runs svg.selectAll('*').remove() and rebuilds the entire SVG tree whenever any node, style, or context state changes. For large trees this causes perceptible redraws with a flash/relayout.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Separate structure/layout pass from the style pass — ForceCanvas already does this with two effects</li>
+            <li>Apply the same two-effect pattern to TreeCanvas: rebuild only on node array changes, restyle on visual state changes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-low"></div>
+        <div class="issue-title">Canvas layout does not respond to window resize</div>
+        <div class="issue-id">10.2</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          The D3 canvas captures container dimensions once on mount. Resizing the browser window does not re-layout the tree, leaving it misaligned.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Add a ResizeObserver on the container div to trigger re-layout when dimensions change</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-header">
+        <div class="priority-dot priority-med"></div>
+        <div class="issue-title">No loading state when switching projects</div>
+        <div class="issue-id">10.3</div>
+      </div>
+      <div class="issue-body">
+        <div class="problem-block">
+          <strong>Problem</strong>
+          Selecting a project triggers a Supabase fetch. During this fetch, the canvas goes blank or shows stale nodes with no loading indicator.
+        </div>
+        <div class="solution-block">
+          <strong>Solutions</strong>
+          <ul>
+            <li>Show a spinner or skeleton in the canvas area during project load</li>
+            <li>Optimistically keep the old nodes visible while new ones are fetching</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Priority Matrix -->
+  <div class="section" id="matrix">
+    <div class="section-header">
+      <div class="section-number" style="background: var(--blue);">★</div>
+      <div class="section-title">Priority Matrix</div>
+    </div>
+
+    <div class="matrix">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 80px;">Priority</th>
+            <th>Issue</th>
+            <th style="width: 90px;">ID</th>
+            <th style="width: 100px;">Effort</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-high">● High</span></td>
+            <td>Core mechanic is undiscoverable</td>
+            <td style="color: var(--text-muted); font-size: 13px;">1.1</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-high">● High</span></td>
+            <td>Grip level is unexplained jargon</td>
+            <td style="color: var(--text-muted); font-size: 13px;">1.2</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-high">● High</span></td>
+            <td>Stage 0 has no progress feedback</td>
+            <td style="color: var(--text-muted); font-size: 13px;">2.1</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-high">● High</span></td>
+            <td>Destructive node ops have no undo</td>
+            <td style="color: var(--text-muted); font-size: 13px;">6.1</td>
+            <td><span class="badge badge-effort-high">High</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-high">● High</span></td>
+            <td>Context section labels are unexplained</td>
+            <td style="color: var(--text-muted); font-size: 13px;">4.2</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>Context panel appears abruptly (no animation)</td>
+            <td style="color: var(--text-muted); font-size: 13px;">4.1</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>No visual transition when switching nodes</td>
+            <td style="color: var(--text-muted); font-size: 13px;">5.1</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>Send / Stop button confusion</td>
+            <td style="color: var(--text-muted); font-size: 13px;">5.3</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>Textarea is fixed height</td>
+            <td style="color: var(--text-muted); font-size: 13px;">5.4</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>No copy button on assistant messages</td>
+            <td style="color: var(--text-muted); font-size: 13px;">5.5</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>Pinned projects lost on refresh</td>
+            <td style="color: var(--text-muted); font-size: 13px;">7.1</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>Canvas dot-grid background missing</td>
+            <td style="color: var(--text-muted); font-size: 13px;">8.2</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>D3 tree fully rebuilt on every state change</td>
+            <td style="color: var(--text-muted); font-size: 13px;">10.1</td>
+            <td><span class="badge badge-effort-high">High</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">● Med</span></td>
+            <td>No loading state when switching projects</td>
+            <td style="color: var(--text-muted); font-size: 13px;">10.3</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-low">● Low</span></td>
+            <td>Swipe gestures undiscoverable</td>
+            <td style="color: var(--text-muted); font-size: 13px;">1.3</td>
+            <td><span class="badge badge-effort-med">Med</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-low">● Low</span></td>
+            <td>Breadcrumb / lineage path in chat pane</td>
+            <td style="color: var(--text-muted); font-size: 13px;">3.3</td>
+            <td><span class="badge badge-effort-med">Med</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-low">● Low</span></td>
+            <td>Force mode nodes too small</td>
+            <td style="color: var(--text-muted); font-size: 13px;">8.3</td>
+            <td><span class="badge badge-effort-low">Low</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-low">● Low</span></td>
+            <td>Canvas keyboard accessibility</td>
+            <td style="color: var(--text-muted); font-size: 13px;">9.1</td>
+            <td><span class="badge badge-effort-high">High</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
