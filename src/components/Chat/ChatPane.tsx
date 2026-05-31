@@ -20,7 +20,7 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
     currentNodeId, messages, currentInput,
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
     isGenerating, setCurrentInput, setReferenced, setRecommended,
-    initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext,
+    initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
   } = useChatStore();
 
   const { nodes, getAllAncestors, getNodesByProject, renameNode } = useDagStore();
@@ -66,7 +66,7 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
   const handleInputChange = (text: string) => {
     setCurrentInput(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!text.trim()) { clearContext(); return; }
+    if (!text.trim()) { partialClearContext(); return; }
     debounceRef.current = setTimeout(() => runStage0(text), DEBOUNCE_MS);
   };
 
@@ -179,7 +179,7 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
     } finally {
       abortRef.current = null;
       setIsGenerating(false);
-      clearContext();
+      partialClearContext();
     }
   };
 

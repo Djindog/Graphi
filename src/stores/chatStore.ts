@@ -21,6 +21,7 @@ interface ChatState {
   toggleNodeActive: (nodeId: string) => void;
   setIsGenerating: (val: boolean) => void;
   clearContext: () => void;
+  partialClearContext: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -101,4 +102,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearContext: () =>
     set({ referencedNodeIds: [], recommendedNodeIds: [], activeContextNodeIds: [], deactivatedNodeIds: [] }),
+
+  partialClearContext: () =>
+    set(s => {
+      const removable = new Set([...s.referencedNodeIds, ...s.recommendedNodeIds]);
+      return {
+        referencedNodeIds: [],
+        recommendedNodeIds: [],
+        activeContextNodeIds: s.activeContextNodeIds.filter(id => !removable.has(id)),
+        // deactivatedNodeIds and lineage nodes untouched
+      };
+    }),
 }));
