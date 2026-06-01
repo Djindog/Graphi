@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import type { Message } from '../types';
 
+interface ContextSnapshot {
+  activeIds: string[];
+  deactivatedIds: string[];
+}
+
 interface ChatState {
   currentNodeId: string | null;
   messages: Message[];
@@ -11,8 +16,10 @@ interface ChatState {
   activeContextNodeIds: string[];
   deactivatedNodeIds: string[];
   isGenerating: boolean;
+  contextDisplayMode: boolean;
+  lastContextSnapshot: ContextSnapshot | null;
 
-  setCurrentNode: (nodeId: string) => Promise<void>;
+  setCurrentNode: (nodeId: string | null) => Promise<void>;
   addMessage: (msg: Message) => void;
   setCurrentInput: (text: string) => void;
   setReferenced: (ids: string[]) => void;
@@ -21,6 +28,11 @@ interface ChatState {
   toggleNodeActive: (nodeId: string) => void;
   setIsGenerating: (val: boolean) => void;
   clearContext: () => void;
+  partialClearContext: () => void;
+  toggleContextDisplay: () => void;
+  setContextDisplay: (on: boolean) => void;
+  clearAllContext: () => void;
+  reinitContext: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,8 +44,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeContextNodeIds: [],
   deactivatedNodeIds: [],
   isGenerating: false,
+  contextDisplayMode: false,
+  lastContextSnapshot: null,
 
   setCurrentNode: async (nodeId) => {
+    if (nodeId === null) {
+      set({
+        currentNodeId: null,
+        messages: [],
+        referencedNodeIds: [],
+        recommendedNodeIds: [],
+        activeContextNodeIds: [],
+        deactivatedNodeIds: [],
+        currentInput: '',
+        contextDisplayMode: false,
+        lastContextSnapshot: null,
+      });
+      return;
+    }
     set({
       currentNodeId: nodeId,
       messages: [],
@@ -42,6 +70,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeContextNodeIds: [],
       deactivatedNodeIds: [],
       currentInput: '',
+      contextDisplayMode: false,
+      lastContextSnapshot: null,
     });
     const { data } = await supabase
       .from('messages')
@@ -60,7 +90,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const deactivated = new Set(s.deactivatedNodeIds);
       const active = new Set(s.activeContextNodeIds);
       lineageIds.forEach(id => { if (!deactivated.has(id)) active.add(id); });
-      return { activeContextNodeIds: [...active] };
+      const activeArr = [...active];
+      return {
+        activeContextNodeIds: activeArr,
+        lastContextSnapshot: { activeIds: activeArr, deactivatedIds: [...deactivated] },
+      };
     });
   },
 
@@ -69,7 +103,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const deactivated = new Set(s.deactivatedNodeIds);
       const active = new Set(s.activeContextNodeIds);
       ids.forEach(id => { if (!deactivated.has(id)) active.add(id); });
-      return { referencedNodeIds: ids, activeContextNodeIds: [...active] };
+      const activeArr = [...active];
+      return {
+        referencedNodeIds: ids,
+        activeContextNodeIds: activeArr,
+        lastContextSnapshot: { activeIds: activeArr, deactivatedIds: [...deactivated] },
+      };
     });
   },
 
@@ -78,7 +117,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const deactivated = new Set(s.deactivatedNodeIds);
       const active = new Set(s.activeContextNodeIds);
       ids.forEach(id => { if (!deactivated.has(id)) active.add(id); });
-      return { recommendedNodeIds: ids, activeContextNodeIds: [...active] };
+      const activeArr = [...active];
+      return {
+        recommendedNodeIds: ids,
+        activeContextNodeIds: activeArr,
+        lastContextSnapshot: { activeIds: activeArr, deactivatedIds: [...deactivated] },
+      };
     });
   },
 
@@ -101,4 +145,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearContext: () =>
     set({ referencedNodeIds: [], recommendedNodeIds: [], activeContextNodeIds: [], deactivatedNodeIds: [] }),
+
+  partialClearContext: () =>
+    set(s => {
+      const removable = new Set([...s.referencedNodeIds, ...s.recommendedNodeIds]);
+      return {
+        referencedNodeIds: [],
+        recommendedNodeIds: [],
+        activeContextNodeIds: s.activeContextNodeIds.filter(id => !removable.has(id)),
+      };
+    }),
+
+  toggleContextDisplay: () => set(s => ({ contextDisplayMode: !s.contextDisplayMode })),
+
+  setContextDisplay: (on) => set({ contextDisplayMode: on }),
+
+  clearAllContext: () =>
+    set(s => ({
+      activeContextNodeIds: [],
+      deactivatedNodeIds: [...new Set([...s.deactivatedNodeIds, ...s.activeContextNodeIds])],
+    })),
+
+  reinitContext: () => {
+    const { lastContextSnapshot } = get();
+    if (!lastContextSnapshot) return;
+    set({
+      activeContextNodeIds: lastContextSnapshot.activeIds,
+      deactivatedNodeIds: lastContextSnapshot.deactivatedIds,
+    });
+  },
 }));

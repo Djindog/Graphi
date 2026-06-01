@@ -10,6 +10,8 @@ interface Props {
   isGenerating: boolean;
   gripLevel: GripLevel;
   onGripChange: (level: GripLevel) => void;
+  onInputFocus?: () => void;
+  onInputBlur?: () => void;
 }
 
 const GRIP_LEVELS: GripLevel[] = ['off', 'low', 'mid', 'high'];
@@ -27,7 +29,7 @@ const Spinner = () => (
   </svg>
 );
 
-export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange }: Props) {
+export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange, onInputFocus, onInputBlur }: Props) {
   const [focused, setFocused] = useState(false);
   const canSend = !isGenerating && !!value.trim();
 
@@ -50,8 +52,8 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={() => { setFocused(true); onInputFocus?.(); }}
+          onBlur={() => { setFocused(false); onInputBlur?.(); }}
           placeholder="How can I help you?"
           rows={2}
           disabled={isGenerating}

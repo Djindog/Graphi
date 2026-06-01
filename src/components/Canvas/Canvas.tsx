@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { GitFork, Share2 } from 'lucide-react';
 import { useGraphStore } from '../../stores/graphStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -27,7 +27,7 @@ interface RenameTarget {
 
 export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
-  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, clearContext, initContext } = useChatStore();
+  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, contextDisplayMode } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
   const { getAllAncestors, renameNode, getDescendants } = useDagStore();
   const { foldedNodeIds, fold, unfold } = useFoldStore();
@@ -35,6 +35,9 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const [dangerNodeIds, setDangerNodeIds] = useState<string[]>([]);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameVal, setRenameVal] = useState('');
+  const [ctrlToast, setCtrlToast] = useState(false);
+  const ctrlToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevDisplayMode = useRef(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const lineageNodeIds = activeNodeId ? getAllAncestors(activeNodeId).map(n => n.id) : [];
@@ -53,6 +56,27 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
       foldedCountMap.set(id, getDescendants(id).length);
     }
   });
+
+  // Ctrl held → temporarily show context display
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        prevDisplayMode.current = contextDisplayMode;
+        setContextDisplay(true);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        setContextDisplay(prevDisplayMode.current);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [contextDisplayMode, setContextDisplay]);
 
   useEffect(() => {
     if (renameTarget) {
@@ -81,29 +105,41 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
     setRenameVal(node.title || '');
   };
 
+  const showCtrlToast = useCallback(() => {
+    setCtrlToast(true);
+    if (ctrlToastTimer.current) clearTimeout(ctrlToastTimer.current);
+    ctrlToastTimer.current = setTimeout(() => setCtrlToast(false), 1800);
+  }, []);
+
+  // Plain click → navigate to node + enable context display
   const handleNodeClick = (node: Node) => {
     if (renameTarget) { commitRename(); return; }
     setOverlay(null);
-    const hasContext = activeContextNodeIds.length > 0 || deactivatedNodeIds.length > 0;
-    if (hasContext) {
-      if (node.id === activeNodeId) {
-        clearContext();
-      } else {
-        toggleNodeActive(node.id);
-      }
-    } else {
-      if (node.id === activeNodeId) {
-        initContext(lineageNodeIds);
-      } else {
-        setCurrentNode(node.id);
-      }
+    setCurrentNode(node.id);
+    setContextDisplay(true);
+  };
+
+  // Ctrl+click → toggle context membership, no navigation
+  const handleNodeCtrlClick = (node: Node) => {
+    if (renameTarget) { commitRename(); return; }
+    setOverlay(null);
+    if (node.id === activeNodeId) {
+      showCtrlToast();
+      return;
     }
+    toggleNodeActive(node.id);
   };
 
   const handleNodeDoubleClick = async (nodeId: string) => {
     if (renameTarget) { commitRename(); return; }
     setOverlay(null);
     await setCurrentNode(nodeId);
+  };
+
+  // Background click → deselect node
+  const handleCanvasClick = () => {
+    if (renameTarget) { commitRename(); return; }
+    setCurrentNode(null);
   };
 
   const handleNodeMenuClick = (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => {
@@ -118,7 +154,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   return (
     <div
       style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F0F2F5', position: 'relative', overflow: 'hidden' }}
-      onClick={() => { if (renameTarget) commitRename(); }}
+      onClick={handleCanvasClick}
     >
       {/* Dot-grid backdrop — zIndex 0 so SVG nodes render above it */}
       <div style={{
@@ -152,6 +188,20 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         ))}
       </div>
 
+      {/* Ctrl+current-node toast */}
+      {ctrlToast && (
+        <div style={{
+          position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, background: '#111827', color: '#fff',
+          padding: '7px 16px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+          pointerEvents: 'none', whiteSpace: 'nowrap',
+          animation: 'gtoast 0.2s ease',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        }}>
+          Can't deselect the current node
+        </div>
+      )}
+
       {nodes.length === 0 ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 12, position: 'relative', zIndex: 1 }}>
           <div style={{ color: '#D1D5DB' }}><GitFork size={36} strokeWidth={1.5} /></div>
@@ -164,12 +214,13 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         <TreeCanvas
           nodes={visibleNodes}
           activeNodeId={activeNodeId}
-          activeContextNodeIds={activeContextNodeIds}
-          deactivatedNodeIds={deactivatedNodeIds}
-          lineageNodeIds={lineageNodeIds}
+          activeContextNodeIds={contextDisplayMode ? activeContextNodeIds : []}
+          deactivatedNodeIds={contextDisplayMode ? deactivatedNodeIds : []}
+          lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
           foldedCountMap={foldedCountMap}
           onNodeClick={handleNodeClick}
+          onNodeCtrlClick={handleNodeCtrlClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
         />
@@ -177,12 +228,13 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         <ForceCanvas
           nodes={visibleNodes}
           activeNodeId={activeNodeId}
-          activeContextNodeIds={activeContextNodeIds}
-          deactivatedNodeIds={deactivatedNodeIds}
-          lineageNodeIds={lineageNodeIds}
+          activeContextNodeIds={contextDisplayMode ? activeContextNodeIds : []}
+          deactivatedNodeIds={contextDisplayMode ? deactivatedNodeIds : []}
+          lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
           foldedCountMap={foldedCountMap}
           onNodeClick={handleNodeClick}
+          onNodeCtrlClick={handleNodeCtrlClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
         />
