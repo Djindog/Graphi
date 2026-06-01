@@ -11,6 +11,7 @@ interface Props {
   dangerNodeIds: string[];
   foldedCountMap: Map<string, number>;
   onNodeClick: (node: Node) => void;
+  onNodeCtrlClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
 }
@@ -52,7 +53,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -63,9 +64,11 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
 
   // Keep latest callbacks in refs so event handlers always call the current version
   const onNodeClickRef = useRef(onNodeClick);
+  const onNodeCtrlClickRef = useRef(onNodeCtrlClick);
   const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
   const onNodeMenuClickRef = useRef(onNodeMenuClick);
   useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
+  useEffect(() => { onNodeCtrlClickRef.current = onNodeCtrlClick; }, [onNodeCtrlClick]);
   useEffect(() => { onNodeDoubleClickRef.current = onNodeDoubleClick; }, [onNodeDoubleClick]);
   useEffect(() => { onNodeMenuClickRef.current = onNodeMenuClick; }, [onNodeMenuClick]);
 
@@ -255,9 +258,11 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
           clickTimer = null;
           onNodeDoubleClickRef.current(d.id);
         } else {
+          const isCtrl = evt.ctrlKey || evt.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            onNodeClickRef.current(nodeData);
+            if (isCtrl) onNodeCtrlClickRef.current(nodeData);
+            else onNodeClickRef.current(nodeData);
           }, 220);
           timers.push(clickTimer);
         }

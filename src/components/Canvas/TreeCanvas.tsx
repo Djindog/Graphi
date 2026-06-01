@@ -11,6 +11,7 @@ interface Props {
   dangerNodeIds: string[];
   foldedCountMap: Map<string, number>;
   onNodeClick: (node: Node) => void;
+  onNodeCtrlClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
 }
@@ -59,7 +60,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -389,9 +390,11 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           clickTimer = null;
           onNodeDoubleClick(nodeData.id);
         } else {
+          const isCtrl = event.ctrlKey || event.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            onNodeClick(nodeData);
+            if (isCtrl) onNodeCtrlClick(nodeData);
+            else onNodeClick(nodeData);
           }, 220);
           timers.push(clickTimer);
         }
@@ -400,7 +403,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     return () => { timers.forEach(t => clearTimeout(t)); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, foldedCountMap, onNodeClick, onNodeDoubleClick, onNodeMenuClick]);
+  }, [nodes, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick]);
   // Visual state is intentionally excluded — Effect 2 handles restyling without a rebuild.
 
   // ── Effect 2: visual style only ───────────────────────────────────────────

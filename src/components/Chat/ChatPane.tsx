@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { GitBranch, CircleDot, MousePointerClick } from 'lucide-react';
+import { GitBranch, CircleDot, MousePointerClick, Eye, EyeOff } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
@@ -21,6 +21,7 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
     isGenerating, setCurrentInput, setReferenced, setRecommended,
     initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
+    contextDisplayMode, toggleContextDisplay, setContextDisplay, clearAllContext, reinitContext,
   } = useChatStore();
 
   const { nodes, getAllAncestors, getNodesByProject, renameNode } = useDagStore();
@@ -216,7 +217,7 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
             ? <CircleDot size={15} strokeWidth={2} color="#2563EB" />
             : <GitBranch size={15} strokeWidth={2} color="#2563EB" />}
         </div>
-        <div style={{ overflow: 'hidden' }}>
+        <div style={{ overflow: 'hidden', flex: 1 }}>
           <p style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0, letterSpacing: '-0.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {currentNode?.title || 'Untitled'}
           </p>
@@ -224,6 +225,19 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
             {isRoot ? 'Root thread' : 'Branch thread'}
           </p>
         </div>
+        <button
+          onClick={toggleContextDisplay}
+          title={contextDisplayMode ? 'Hide context' : 'Show context'}
+          style={{
+            width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer', flexShrink: 0,
+            background: contextDisplayMode ? '#EFF6FF' : 'transparent',
+            color: contextDisplayMode ? '#2563EB' : '#9CA3AF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.15s',
+          }}
+        >
+          {contextDisplayMode ? <Eye size={15} strokeWidth={2} /> : <EyeOff size={15} strokeWidth={2} />}
+        </button>
       </div>
 
       {allContextIds.length > 0 && (
@@ -234,11 +248,23 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
           activeIds={activeContextNodeIds}
           nodeMap={nodeMap}
           onToggle={toggleNodeActive}
+          onClearAll={clearAllContext}
+          onReinit={reinitContext}
         />
       )}
 
       <SwipeContainer messages={messages} isGenerating={isGenerating} />
-      <ChatInput value={currentInput} onChange={handleInputChange} onSend={handleSend} onStop={handleStop} isGenerating={isGenerating} gripLevel={gripLevel} onGripChange={setGripLevel} />
+      <ChatInput
+        value={currentInput}
+        onChange={handleInputChange}
+        onSend={handleSend}
+        onStop={handleStop}
+        isGenerating={isGenerating}
+        gripLevel={gripLevel}
+        onGripChange={setGripLevel}
+        onInputFocus={() => setContextDisplay(true)}
+        onInputBlur={() => { if (!contextDisplayMode) setContextDisplay(false); }}
+      />
     </div>
   );
 }

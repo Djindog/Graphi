@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { Node } from '../../types';
+
 
 interface Props {
   ancestors: Node[];
@@ -7,12 +9,15 @@ interface Props {
   activeIds: string[];
   nodeMap: Map<string, Node>;
   onToggle: (nodeId: string) => void;
+  onClearAll: () => void;
+  onReinit: () => void;
 }
 
-export function ContextSummary({ ancestors, referencedIds, recommendedIds, activeIds, nodeMap, onToggle }: Props) {
+export function ContextSummary({ ancestors, referencedIds, recommendedIds, activeIds, nodeMap, onToggle, onClearAll, onReinit }: Props) {
+  const [tooltip, setTooltip] = useState(false);
   const isActive = (id: string) => activeIds.includes(id);
-
   const allIds = [...new Set([...ancestors.map(n => n.id), ...referencedIds, ...recommendedIds])];
+  const allCleared = allIds.length > 0 && activeIds.length === 0;
 
   const Chip = ({ id }: { id: string }) => {
     const node = nodeMap.get(id);
@@ -50,10 +55,42 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
   return (
     <div style={{ borderBottom: '1px solid #F3F4F6', padding: '12px 16px 10px', background: '#FAFAFA' }}>
       <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', margin: '0 0 9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Lineage · click to toggle
+        Context
       </p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
         {allIds.map(id => <Chip key={id} id={id} />)}
+
+        {/* Clear / Reinit chip */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={allCleared ? onReinit : onClearAll}
+            onMouseEnter={() => setTooltip(true)}
+            onMouseLeave={() => setTooltip(false)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 30, height: 30, borderRadius: 999, cursor: 'pointer',
+              border: allCleared ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
+              background: allCleared ? '#EFF6FF' : '#fff',
+              color: allCleared ? '#2563EB' : '#9CA3AF',
+              fontSize: 14, fontWeight: 600,
+              transition: 'all 0.12s',
+              fontFamily: 'inherit',
+            }}
+          >
+            {allCleared ? '↺' : '✕'}
+          </button>
+          {tooltip && (
+            <div style={{
+              position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+              background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
+              padding: '5px 10px', borderRadius: 7, whiteSpace: 'nowrap',
+              pointerEvents: 'none', zIndex: 100,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+              {allCleared ? 'Restore context' : 'Clear context'}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
