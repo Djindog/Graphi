@@ -18,14 +18,18 @@ import type Groq from 'groq-sdk';
 type GroqClient = InstanceType<typeof Groq>;
 
 const MIN_CHAT_WIDTH = 240;
+const MAX_CHAT_WIDTH = 720;
 const DEFAULT_CHAT_WIDTH = 500;
+const CANVAS_SNAP_THRESHOLD = 300;
+const TOOLTIP_DELAY_MS = 400;
 
 function getSidebarWidth(collapsed: boolean) {
   return collapsed ? 48 : 220;
 }
 
-function maxChatWidth(sidebarCollapsed: boolean) {
-  return Math.floor((window.innerWidth - getSidebarWidth(sidebarCollapsed)) / 2);
+function clampChatWidth(w: number, sidebarCollapsed: boolean) {
+  const max = Math.min(MAX_CHAT_WIDTH, Math.floor((window.innerWidth - getSidebarWidth(sidebarCollapsed)) / 2));
+  return Math.max(MIN_CHAT_WIDTH, Math.min(max, w));
 }
 
 async function loadGroqKey(userId: string): Promise<string | null> {
@@ -56,16 +60,24 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [chatPaneWidth, setChatPaneWidth] = useState(DEFAULT_CHAT_WIDTH);
+  // null = flex:1 (normal), 0 = hidden, N = explicit px (during grab-drag)
+  const [canvasWidth, setCanvasWidth] = useState<number | null>(null);
   const [dividerHovered, setDividerHovered] = useState(false);
+  const [grabHovered, setGrabHovered] = useState(false);
+  const [dividerTooltip, setDividerTooltip] = useState(false);
+  const [grabTooltip, setGrabTooltip] = useState(false);
+  const dividerTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const grabTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragState = useRef<{ startX: number; startWidth: number; maxW: number } | null>(null);
 
   const { setFromSupabase, subscribeToProjectNodes, getNodesByProject } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
 
   useEffect(() => {
-    const max = maxChatWidth(sidebarCollapsed);
-    setChatPaneWidth(w => Math.min(w, max));
-  }, [sidebarCollapsed]);
+    if (canvasWidth === null) {
+      setChatPaneWidth(w => clampChatWidth(w, sidebarCollapsed));
+    }
+  }, [sidebarCollapsed, canvasWidth]);
 
   const addToast = useCallback((text: string, type: ToastMessage['type'] = 'success') => {
     const id = uuidv4();
@@ -152,15 +164,32 @@ export default function App() {
     if (activeProject?.id === projectId) setActiveProject(prev => prev ? { ...prev, name } : prev);
   };
 
+  const revealCanvas = useCallback(() => {
+    setCanvasWidth(null);
+    setChatPaneWidth(prev => clampChatWidth(prev, sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  // Divider drag: drag left collapses canvas, snaps to hidden at threshold
   const onDividerMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
-    const maxW = maxChatWidth(sidebarCollapsed);
-    dragState.current = { startX: e.clientX, startWidth: chatPaneWidth, maxW };
+    const sidebarW = getSidebarWidth(sidebarCollapsed);
+    const available = window.innerWidth - sidebarW - 8;
+    dragState.current = { startX: e.clientX, startWidth: chatPaneWidth, maxW: available };
+
     const onMove = (ev: MouseEvent) => {
       if (!dragState.current) return;
       const delta = dragState.current.startX - ev.clientX;
-      setChatPaneWidth(Math.max(MIN_CHAT_WIDTH, Math.min(dragState.current.maxW, dragState.current.startWidth + delta)));
+      const newChatW = Math.max(MIN_CHAT_WIDTH, dragState.current.startWidth + delta);
+      const implicitCanvasW = dragState.current.maxW - newChatW;
+
+      if (implicitCanvasW < CANVAS_SNAP_THRESHOLD) {
+        setCanvasWidth(0);
+      } else {
+        setCanvasWidth(null);
+        setChatPaneWidth(Math.min(MAX_CHAT_WIDTH, newChatW));
+      }
     };
+
     const onUp = () => {
       dragState.current = null;
       document.removeEventListener('mousemove', onMove);
@@ -168,6 +197,58 @@ export default function App() {
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+  };
+
+  // Grab handle drag: drag right reveals canvas
+  const onGrabHandleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const sidebarW = getSidebarWidth(sidebarCollapsed);
+    const available = window.innerWidth - sidebarW - 8;
+    const startX = e.clientX;
+    let lastDragDist = 0;
+
+    const onMove = (ev: MouseEvent) => {
+      const dragDist = Math.max(0, ev.clientX - startX);
+      lastDragDist = dragDist;
+
+      if (dragDist < CANVAS_SNAP_THRESHOLD) {
+        setCanvasWidth(0);
+      } else {
+        setCanvasWidth(dragDist);
+        setChatPaneWidth(Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, available - dragDist)));
+      }
+    };
+
+    const onUp = () => {
+      if (lastDragDist < CANVAS_SNAP_THRESHOLD) {
+        setCanvasWidth(0);
+      } else {
+        setCanvasWidth(null);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const onDividerEnter = () => {
+    setDividerHovered(true);
+    dividerTooltipTimer.current = setTimeout(() => setDividerTooltip(true), TOOLTIP_DELAY_MS);
+  };
+  const onDividerLeave = () => {
+    setDividerHovered(false);
+    setDividerTooltip(false);
+    if (dividerTooltipTimer.current) clearTimeout(dividerTooltipTimer.current);
+  };
+  const onGrabEnter = () => {
+    setGrabHovered(true);
+    grabTooltipTimer.current = setTimeout(() => setGrabTooltip(true), TOOLTIP_DELAY_MS);
+  };
+  const onGrabLeave = () => {
+    setGrabHovered(false);
+    setGrabTooltip(false);
+    if (grabTooltipTimer.current) clearTimeout(grabTooltipTimer.current);
   };
 
   if (loading) {
@@ -181,6 +262,7 @@ export default function App() {
   if (!user) return <AuthPage />;
 
   const projectNodes = activeProject ? getNodesByProject(activeProject.id) : [];
+  const canvasHidden = canvasWidth === 0;
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -196,31 +278,97 @@ export default function App() {
         onError={msg => addToast(msg, 'error')}
         onOpenSettings={() => setShowSettingsKeyModal(true)}
       />
-      <Canvas
-        nodes={projectNodes}
-        rootNodeId={activeProject?.rootNodeId ?? null}
-        projects={projects}
-        onProjectCreated={handleProjectCreated}
-      />
 
-      <div
-        onMouseDown={onDividerMouseDown}
-        onMouseEnter={() => setDividerHovered(true)}
-        onMouseLeave={() => setDividerHovered(false)}
-        style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
-      >
-        <div style={{ width: dividerHovered ? 3 : 1, background: dividerHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+      {/* Left grab handle — only when canvas hidden */}
+      {canvasHidden && (
+        <div
+          onMouseDown={onGrabHandleMouseDown}
+          onMouseEnter={onGrabEnter}
+          onMouseLeave={onGrabLeave}
+          onDoubleClick={() => { revealCanvas(); setGrabTooltip(false); if (grabTooltipTimer.current) clearTimeout(grabTooltipTimer.current); }}
+          style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
+        >
+          <div style={{ width: grabHovered ? 3 : 1, background: grabHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          {grabTooltip && (
+            <div style={{
+              position: 'absolute', top: '50%', left: 'calc(100% + 10px)', transform: 'translateY(-50%)',
+              background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
+              padding: '7px 11px', borderRadius: 7, whiteSpace: 'nowrap',
+              pointerEvents: 'none', zIndex: 200, lineHeight: 1.6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+              {/* Triangle pointing left toward handle */}
+              <div style={{
+                position: 'absolute', top: '50%', left: -4, transform: 'translateY(-50%)',
+                width: 0, height: 0,
+                borderTop: '4px solid transparent', borderBottom: '4px solid transparent',
+                borderRight: '5px solid #111827',
+              }} />
+              Drag to resize<br />Double-click to show canvas
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Canvas wrapper — hidden via display:none when canvasWidth === 0 */}
+      <div style={{
+        flex: canvasWidth === null ? 1 : undefined,
+        width: canvasWidth !== null && canvasWidth > 0 ? canvasWidth : undefined,
+        flexShrink: 0,
+        overflow: 'hidden',
+        display: canvasHidden ? 'none' : 'block',
+        position: 'relative',
+      }}>
+        <Canvas
+          nodes={projectNodes}
+          rootNodeId={activeProject?.rootNodeId ?? null}
+          projects={projects}
+          onProjectCreated={handleProjectCreated}
+        />
       </div>
 
-      <ChatPane width={chatPaneWidth} groqClient={groqClient} />
+      {/* Divider — only when canvas visible */}
+      {!canvasHidden && (
+        <div
+          onMouseDown={onDividerMouseDown}
+          onMouseEnter={onDividerEnter}
+          onMouseLeave={onDividerLeave}
+          onDoubleClick={() => { setCanvasWidth(0); setDividerTooltip(false); if (dividerTooltipTimer.current) clearTimeout(dividerTooltipTimer.current); }}
+          style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
+        >
+          <div style={{ width: dividerHovered ? 3 : 1, background: dividerHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          {dividerTooltip && (
+            <div style={{
+              position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)',
+              background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
+              padding: '7px 11px', borderRadius: 7, whiteSpace: 'nowrap',
+              pointerEvents: 'none', zIndex: 200, lineHeight: 1.6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+              {/* Triangle pointing right toward divider */}
+              <div style={{
+                position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)',
+                width: 0, height: 0,
+                borderTop: '4px solid transparent', borderBottom: '4px solid transparent',
+                borderLeft: '5px solid #111827',
+              }} />
+              Drag to resize<br />Double-click to hide canvas
+            </div>
+          )}
+        </div>
+      )}
+
+      <ChatPane
+        width={chatPaneWidth}
+        canvasHidden={canvasHidden}
+        groqClient={groqClient}
+      />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      {/* Blocking key entry — shown when user has no key stored */}
       {showKeyModal && (
         <ApiKeyModal onSave={handleSaveKey} />
       )}
 
-      {/* Settings modal — update key */}
       {showSettingsKeyModal && (
         <ApiKeyModal
           onSave={handleSaveKey}

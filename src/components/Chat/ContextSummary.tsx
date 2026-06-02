@@ -53,7 +53,15 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
   };
 
   return (
-    <div style={{ borderBottom: '1px solid #F3F4F6', padding: '12px 16px 10px', background: '#FAFAFA' }}>
+    <div style={{
+      padding: '12px 16px 10px',
+      background: '#fff',
+      borderRadius: '0 0 14px 14px',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
+      borderLeft: '1px solid rgba(0,0,0,0.06)',
+      borderRight: '1px solid rgba(0,0,0,0.06)',
+      borderBottom: '1px solid rgba(0,0,0,0.06)',
+    }}>
       <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', margin: '0 0 9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         Context
       </p>
@@ -81,13 +89,21 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
           </button>
           {tooltip && (
             <div style={{
-              position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+              position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
               background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
               padding: '5px 10px', borderRadius: 7, whiteSpace: 'nowrap',
               pointerEvents: 'none', zIndex: 100,
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             }}>
-              {allCleared ? 'Restore context' : 'Clear context'}
+              {/* Triangle pointing up */}
+              <div style={{
+                position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)',
+                width: 0, height: 0,
+                borderLeft: '5px solid transparent',
+                borderRight: '5px solid transparent',
+                borderBottom: '5px solid #111827',
+              }} />
+              {allCleared ? 'Restore context' : 'Deselect all context'}
             </div>
           )}
         </div>

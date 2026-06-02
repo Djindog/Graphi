@@ -14,6 +14,7 @@ interface Props {
   onNodeCtrlClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
+  onNodeBadgeClick: (nodeId: string) => void;
 }
 
 const NODE_W = 168;
@@ -60,7 +61,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -354,6 +355,19 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         onNodeMenuClick(nodeData, overlayX, overlayY, nodeScreenX, nodeScreenY, scaledW, scaledH);
       });
 
+      // Right-click → open tool overlay at cursor
+      g.on('contextmenu', (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const svgRect = svgRef.current!.getBoundingClientRect();
+        const transform = d3.zoomTransform(svgRef.current!);
+        const scaledW = expW * transform.k;
+        const scaledH = NODE_H * transform.k;
+        const nodeScreenX = svgRect.left + transform.applyX(d.x - expW / 2);
+        const nodeScreenY = svgRect.top + transform.applyY(d.y - NODE_H / 2);
+        onNodeMenuClick(nodeData, event.clientX + 8, event.clientY, nodeScreenX, nodeScreenY, scaledW, scaledH);
+      });
+
       // Fold badge
       const foldCount = foldedCountMap.get(nodeData.id);
       if (foldCount !== undefined) {
@@ -363,22 +377,68 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         const badgeX = initW;
         const badgeY = NODE_H - 2;
 
-        g.append('rect')
+        const badgeGroup = g.append('g')
+          .attr('class', 'fold-badge-group')
+          .attr('cursor', 'pointer');
+
+        badgeGroup.append('rect')
           .attr('class', 'fold-badge-bg')
           .attr('x', badgeX - badgeW / 2).attr('y', badgeY - badgeH / 2)
           .attr('width', badgeW).attr('height', badgeH)
           .attr('rx', badgeH / 2)
-          .attr('fill', '#2563EB')
-          .attr('pointer-events', 'none');
+          .attr('fill', '#2563EB');
 
-        g.append('text')
-          .attr('class', 'fold-badge-text')
+        badgeGroup.append('text')
           .attr('x', badgeX).attr('y', badgeY)
           .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
           .attr('font-size', '12px').attr('font-weight', '600')
           .attr('fill', '#fff').attr('pointer-events', 'none')
           .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
           .text(label);
+
+        // Tooltip below the badge
+        const tooltipW = 52;
+        const tooltipH = 22;
+        const tooltipX = badgeX - tooltipW / 2;
+        const tooltipY = badgeY + badgeH / 2 + 6;
+
+        const tooltipG = g.append('g')
+          .attr('class', 'fold-tooltip')
+          .attr('opacity', 0)
+          .attr('pointer-events', 'none');
+
+        // Triangle pointing up toward badge
+        tooltipG.append('polygon')
+          .attr('points', `${badgeX - 4},${tooltipY} ${badgeX + 4},${tooltipY} ${badgeX},${tooltipY - 5}`)
+          .attr('fill', '#111827');
+
+        tooltipG.append('rect')
+          .attr('x', tooltipX).attr('y', tooltipY)
+          .attr('width', tooltipW).attr('height', tooltipH)
+          .attr('rx', 6)
+          .attr('fill', '#111827');
+
+        tooltipG.append('text')
+          .attr('x', badgeX).attr('y', tooltipY + tooltipH / 2)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+          .attr('font-size', '11px').attr('font-weight', '500')
+          .attr('fill', '#fff')
+          .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+          .text('Unfold');
+
+        badgeGroup
+          .on('click', (event: MouseEvent) => {
+            event.stopPropagation();
+            onNodeBadgeClick(nodeData.id);
+          })
+          .on('mouseenter', () => {
+            tooltipG.attr('opacity', 1);
+            badgeGroup.select('rect.fold-badge-bg').attr('fill', '#1D4ED8');
+          })
+          .on('mouseleave', () => {
+            tooltipG.attr('opacity', 0);
+            badgeGroup.select('rect.fold-badge-bg').attr('fill', '#2563EB');
+          });
       }
 
       let clickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -403,7 +463,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     return () => { timers.forEach(t => clearTimeout(t)); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick]);
+  }, [nodes, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick]);
   // Visual state is intentionally excluded — Effect 2 handles restyling without a rebuild.
 
   // ── Effect 2: visual style only ───────────────────────────────────────────
@@ -455,7 +515,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, getNodeStyle, getEdgeStyle]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }} onContextMenu={e => e.preventDefault()}>
       <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
