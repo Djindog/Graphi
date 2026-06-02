@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { GitBranch, CircleDot, MousePointerClick, Eye, EyeOff } from 'lucide-react';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { GitBranch, CircleDot, MousePointerClick } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
@@ -7,7 +7,7 @@ import { detectReferences, generateTitle } from '../../lib/groq';
 import { embedText } from '../../lib/jina';
 import { supabase } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { SwipeContainer } from './SwipeContainer';
+import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ContextSummary } from './ContextSummary';
 import type { Message } from '../../types';
@@ -15,13 +15,13 @@ import type Groq from 'groq-sdk';
 
 const DEBOUNCE_MS = 500;
 
-export function ChatPane({ width = 320, groqClient }: { width?: number; groqClient: InstanceType<typeof Groq> | null }) {
+export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { width?: number; groqClient: InstanceType<typeof Groq> | null; canvasHidden?: boolean }) {
   const {
     currentNodeId, messages, currentInput,
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
     isGenerating, setCurrentInput, setReferenced, setRecommended,
     initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
-    contextDisplayMode, toggleContextDisplay, setContextDisplay, clearAllContext, reinitContext,
+    contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
   } = useChatStore();
 
   const { nodes, getAllAncestors, getNodesByProject, renameNode } = useDagStore();
@@ -29,6 +29,18 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const contextRoRef = useRef<ResizeObserver | null>(null);
+  const messageScrollRef = useRef<HTMLDivElement>(null);
+  const [contextH, setContextH] = useState(0);
+
+  const contextCardRef = useCallback((el: HTMLDivElement | null) => {
+    contextRoRef.current?.disconnect();
+    if (!el) { setContextH(0); return; }
+    const ro = new ResizeObserver(() => setContextH(el.offsetHeight));
+    ro.observe(el);
+    setContextH(el.offsetHeight);
+    contextRoRef.current = ro;
+  }, []);
   const currentNode = nodes.find(n => n.id === currentNodeId) ?? null;
 
   useEffect(() => {
@@ -194,7 +206,7 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
 
   if (!currentNodeId) {
     return (
-      <div style={{ width, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexShrink: 0 }}>
+      <div style={{ ...(canvasHidden ? { flex: 1 } : { width, flexShrink: 0 }), background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <div style={{ textAlign: 'center', padding: '0 24px' }}>
           <div style={{ color: '#D1D5DB', marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
             <MousePointerClick size={32} strokeWidth={1.5} />
@@ -209,8 +221,8 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
   const isRoot = !currentNode?.parentId;
 
   return (
-    <div style={{ width, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
-      {/* Node header */}
+    <div style={{ ...(canvasHidden ? { flex: 1 } : { width, flexShrink: 0 }), background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header — full pane width */}
       <div style={{ padding: '15px 16px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 30, height: 30, borderRadius: 9, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {isRoot
@@ -225,46 +237,72 @@ export function ChatPane({ width = 320, groqClient }: { width?: number; groqClie
             {isRoot ? 'Root thread' : 'Branch thread'}
           </p>
         </div>
-        <button
-          onClick={toggleContextDisplay}
-          title={contextDisplayMode ? 'Hide context' : 'Show context'}
-          style={{
-            width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer', flexShrink: 0,
-            background: contextDisplayMode ? '#EFF6FF' : 'transparent',
-            color: contextDisplayMode ? '#2563EB' : '#9CA3AF',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.15s',
-          }}
-        >
-          {contextDisplayMode ? <Eye size={15} strokeWidth={2} /> : <EyeOff size={15} strokeWidth={2} />}
-        </button>
       </div>
 
-      {allContextIds.length > 0 && (
-        <ContextSummary
-          ancestors={ancestors}
-          referencedIds={referencedNodeIds}
-          recommendedIds={recommendedNodeIds}
-          activeIds={activeContextNodeIds}
-          nodeMap={nodeMap}
-          onToggle={toggleNodeActive}
-          onClearAll={clearAllContext}
-          onReinit={reinitContext}
-        />
-      )}
+      {/* Content area — scroll spans full pane width so scrollbar is at the screen edge */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
-      <SwipeContainer messages={messages} isGenerating={isGenerating} />
-      <ChatInput
-        value={currentInput}
-        onChange={handleInputChange}
-        onSend={handleSend}
-        onStop={handleStop}
-        isGenerating={isGenerating}
-        gripLevel={gripLevel}
-        onGripChange={setGripLevel}
-        onInputFocus={() => setContextDisplay(true)}
-        onInputBlur={() => { if (!contextDisplayMode) setContextDisplay(false); }}
-      />
+        {/* Messages area — full pane width, U-shaped context panel hangs from top */}
+        <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          <MessageList
+            messages={messages}
+            isGenerating={isGenerating}
+            contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
+            scrollContainerRef={messageScrollRef}
+          />
+
+          {/* Blur gradient just below the context panel */}
+          {allContextIds.length > 0 && contextH > 0 && (
+            <div style={{
+              position: 'absolute', top: contextH, left: 0, right: 0, height: 24,
+              background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), transparent)',
+              pointerEvents: 'none', zIndex: 8,
+            }} />
+          )}
+
+          {/* Context panel — U-shape, hangs from top, centered at 720px */}
+          {allContextIds.length > 0 && (
+            <div
+              ref={contextCardRef}
+              style={{
+                position: 'absolute', top: 0,
+                left: '50%', transform: 'translateX(-50%)',
+                width: 'calc(100% - 16px)', maxWidth: 720,
+                zIndex: 10,
+              }}
+              onWheel={e => { messageScrollRef.current?.scrollBy({ top: e.deltaY }); }}
+            >
+              <ContextSummary
+                ancestors={ancestors}
+                referencedIds={referencedNodeIds}
+                recommendedIds={recommendedNodeIds}
+                activeIds={activeContextNodeIds}
+                nodeMap={nodeMap}
+                onToggle={toggleNodeActive}
+                onClearAll={clearAllContext}
+                onReinit={reinitContext}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Chat input — centered at 720px */}
+        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: '100%', maxWidth: 720 }}>
+            <ChatInput
+              value={currentInput}
+              onChange={handleInputChange}
+              onSend={handleSend}
+              onStop={handleStop}
+              isGenerating={isGenerating}
+              gripLevel={gripLevel}
+              onGripChange={setGripLevel}
+              onInputFocus={() => setContextDisplay(true)}
+              onInputBlur={() => { if (!contextDisplayMode) setContextDisplay(false); }}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ interface Props {
   onNodeCtrlClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
+  onNodeBadgeClick: (nodeId: string) => void;
 }
 
 const BLUE = '#2563EB';
@@ -53,7 +54,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -67,10 +68,12 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
   const onNodeCtrlClickRef = useRef(onNodeCtrlClick);
   const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
   const onNodeMenuClickRef = useRef(onNodeMenuClick);
+  const onNodeBadgeClickRef = useRef(onNodeBadgeClick);
   useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
   useEffect(() => { onNodeCtrlClickRef.current = onNodeCtrlClick; }, [onNodeCtrlClick]);
   useEffect(() => { onNodeDoubleClickRef.current = onNodeDoubleClick; }, [onNodeDoubleClick]);
   useEffect(() => { onNodeMenuClickRef.current = onNodeMenuClick; }, [onNodeMenuClick]);
+  useEffect(() => { onNodeBadgeClickRef.current = onNodeBadgeClick; }, [onNodeBadgeClick]);
 
   // Effect 1: Setup simulation and SVG when nodes array changes
   useEffect(() => {
@@ -216,28 +219,85 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       const label = String(count);
       const badgeH = 18;
       const badgeW = Math.max(18, label.length * 8 + 10);
-      // Center at the bottom-right corner of the circle's bounding box
       const bx = NODE_RADIUS;
       const by = NODE_RADIUS;
-      const g = d3.select(this);
-      g.append('rect')
+      const nodeG = d3.select(this);
+
+      const badgeGroup = nodeG.append('g')
+        .attr('class', 'fold-badge-group')
+        .attr('cursor', 'pointer');
+
+      badgeGroup.append('rect')
+        .attr('class', 'fold-badge-bg')
         .attr('x', bx - badgeW / 2).attr('y', by - badgeH / 2)
         .attr('width', badgeW).attr('height', badgeH)
         .attr('rx', badgeH / 2)
-        .attr('fill', '#2563EB')
-        .attr('pointer-events', 'none');
-      g.append('text')
+        .attr('fill', '#2563EB');
+
+      badgeGroup.append('text')
         .attr('x', bx).attr('y', by)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
         .attr('font-size', '11px').attr('font-weight', '600')
         .attr('fill', '#fff').attr('pointer-events', 'none')
         .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
         .text(label);
+
+      // Tooltip below badge
+      const tooltipW = 52;
+      const tooltipH = 20;
+      const tooltipX = bx - tooltipW / 2;
+      const tooltipY = by + badgeH / 2 + 5;
+
+      const tooltipG = nodeG.append('g')
+        .attr('class', 'fold-tooltip')
+        .attr('opacity', 0)
+        .attr('pointer-events', 'none');
+
+      tooltipG.append('polygon')
+        .attr('points', `${bx - 4},${tooltipY} ${bx + 4},${tooltipY} ${bx},${tooltipY - 5}`)
+        .attr('fill', '#111827');
+
+      tooltipG.append('rect')
+        .attr('x', tooltipX).attr('y', tooltipY)
+        .attr('width', tooltipW).attr('height', tooltipH)
+        .attr('rx', 5)
+        .attr('fill', '#111827');
+
+      tooltipG.append('text')
+        .attr('x', bx).attr('y', tooltipY + tooltipH / 2)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+        .attr('font-size', '11px').attr('font-weight', '500')
+        .attr('fill', '#fff')
+        .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+        .text('Unfold');
+
+      badgeGroup
+        .on('click', (evt) => {
+          evt.stopPropagation();
+          onNodeBadgeClickRef.current(d.id);
+        })
+        .on('mouseenter', () => {
+          tooltipG.attr('opacity', 1);
+          badgeGroup.select('rect.fold-badge-bg').attr('fill', '#1D4ED8');
+        })
+        .on('mouseleave', () => {
+          tooltipG.attr('opacity', 0);
+          badgeGroup.select('rect.fold-badge-bg').attr('fill', '#2563EB');
+        });
     });
 
     // Hover & click tracking
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     const timers: ReturnType<typeof setTimeout>[] = [];
+
+    nodeGroup.on('contextmenu', (evt, d) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const nodeData = nodeMapRef.current.get(d.id);
+      if (!nodeData) return;
+      const r = NODE_RADIUS * 2;
+      onNodeMenuClickRef.current(nodeData, evt.clientX + 8, evt.clientY, evt.clientX - NODE_RADIUS, evt.clientY - NODE_RADIUS, r, r);
+    });
 
     nodeGroup.on('mouseover', (evt) => {
       const pos = d3.select(evt.currentTarget).datum() as SimNode;
@@ -390,7 +450,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }} onContextMenu={e => e.preventDefault()}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
       </div>

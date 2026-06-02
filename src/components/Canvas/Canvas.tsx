@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { GitFork, Share2 } from 'lucide-react';
+import { GitFork, Share2, Eye, EyeOff } from 'lucide-react';
 import { useGraphStore } from '../../stores/graphStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
@@ -27,7 +27,7 @@ interface RenameTarget {
 
 export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
-  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, contextDisplayMode } = useChatStore();
+  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
   const { getAllAncestors, renameNode, getDescendants } = useDagStore();
   const { foldedNodeIds, fold, unfold } = useFoldStore();
@@ -36,6 +36,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameVal, setRenameVal] = useState('');
   const [ctrlToast, setCtrlToast] = useState(false);
+  const [eyeTooltip, setEyeTooltip] = useState(false);
   const ctrlToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevDisplayMode = useRef(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -111,12 +112,16 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
     ctrlToastTimer.current = setTimeout(() => setCtrlToast(false), 1800);
   }, []);
 
-  // Plain click → navigate to node + enable context display
+  // Plain click → if current node, toggle display; otherwise navigate + enable display
   const handleNodeClick = (node: Node) => {
     if (renameTarget) { commitRename(); return; }
     setOverlay(null);
-    setCurrentNode(node.id);
-    setContextDisplay(true);
+    if (node.id === activeNodeId) {
+      toggleContextDisplay();
+    } else {
+      setCurrentNode(node.id);
+      setContextDisplay(true);
+    }
   };
 
   // Ctrl+click → toggle context membership, no navigation
@@ -133,13 +138,21 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const handleNodeDoubleClick = async (nodeId: string) => {
     if (renameTarget) { commitRename(); return; }
     setOverlay(null);
+    if (nodeId === activeNodeId) return;
     await setCurrentNode(nodeId);
+    setContextDisplay(true);
   };
 
   // Background click → deselect node
   const handleCanvasClick = () => {
     if (renameTarget) { commitRename(); return; }
     setCurrentNode(null);
+  };
+
+  const handleNodeBadgeClick = (nodeId: string) => {
+    unfold(nodeId);
+    setOverlay(null);
+    setDangerNodeIds([]);
   };
 
   const handleNodeMenuClick = (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => {
@@ -153,7 +166,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
 
   return (
     <div
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F0F2F5', position: 'relative', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#F0F2F5', position: 'relative', overflow: 'hidden' }}
       onClick={handleCanvasClick}
     >
       {/* Dot-grid backdrop — zIndex 0 so SVG nodes render above it */}
@@ -164,28 +177,66 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
       }} />
 
       {/* Toolbar */}
-      <div style={{
-        position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 3,
-        background: '#fff', border: '1px solid #E5E7EB', borderRadius: 11,
-        padding: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-      }}>
-        {([['tree', <GitFork key="tf" size={14} strokeWidth={2} />], ['force', <Share2 key="ff" size={14} strokeWidth={2} />]] as [string, React.ReactNode][]).map(([mode, icon]) => (
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+        {/* Eye toggle — just icon, no box */}
+        <div style={{ position: 'relative' }}>
           <button
-            key={mode as string}
-            onClick={() => setGraphMode(mode as 'tree' | 'force')}
+            onClick={toggleContextDisplay}
+            onMouseEnter={() => setEyeTooltip(true)}
+            onMouseLeave={() => setEyeTooltip(false)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: graphMode === mode ? '#111827' : 'transparent',
-              color: graphMode === mode ? '#fff' : '#6B7280',
-              fontWeight: graphMode === mode ? 500 : 400,
-              transition: 'all 0.15s', textTransform: 'capitalize', fontFamily: 'inherit',
+              width: 30, height: 30, border: 'none', cursor: 'pointer',
+              background: 'transparent',
+              color: contextDisplayMode ? '#2563EB' : '#6B7280',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'color 0.15s', borderRadius: 8,
             }}
           >
-            {icon}
-            {mode as string}
+            {contextDisplayMode ? <Eye size={15} strokeWidth={2} /> : <EyeOff size={15} strokeWidth={2} />}
           </button>
-        ))}
+          {eyeTooltip && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
+              background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
+              padding: '5px 10px', borderRadius: 7, whiteSpace: 'nowrap',
+              pointerEvents: 'none', zIndex: 100,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+              <div style={{
+                position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)',
+                width: 0, height: 0,
+                borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
+                borderBottom: '5px solid #111827',
+              }} />
+              {contextDisplayMode ? 'Hide context' : 'Show context'}
+            </div>
+          )}
+        </div>
+
+        {/* Tree / Force selector pill */}
+        <div style={{
+          display: 'flex', gap: 3,
+          background: '#fff', border: '1px solid #E5E7EB', borderRadius: 11,
+          padding: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        }}>
+          {([['tree', <GitFork key="tf" size={14} strokeWidth={2} />], ['force', <Share2 key="ff" size={14} strokeWidth={2} />]] as [string, React.ReactNode][]).map(([mode, icon]) => (
+            <button
+              key={mode as string}
+              onClick={() => setGraphMode(mode as 'tree' | 'force')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer',
+                background: graphMode === mode ? '#111827' : 'transparent',
+                color: graphMode === mode ? '#fff' : '#6B7280',
+                fontWeight: graphMode === mode ? 500 : 400,
+                transition: 'all 0.15s', textTransform: 'capitalize', fontFamily: 'inherit',
+              }}
+            >
+              {icon}
+              {mode as string}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Ctrl+current-node toast */}
@@ -223,6 +274,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           onNodeCtrlClick={handleNodeCtrlClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
+          onNodeBadgeClick={handleNodeBadgeClick}
         />
       ) : (
         <ForceCanvas
@@ -237,6 +289,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           onNodeCtrlClick={handleNodeCtrlClick}
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
+          onNodeBadgeClick={handleNodeBadgeClick}
         />
       )}
 

@@ -38,13 +38,15 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
   };
 
   return (
-    <div style={{ borderTop: '1px solid #F3F4F6', padding: '14px 16px', background: '#fff' }}>
-      {/* Unified composer container */}
+    <div style={{ padding: '4px 12px 16px', background: 'transparent' }}>
+      {/* Unified composer container — floating card */}
       <div style={{
         border: `1.5px solid ${focused ? '#2563EB' : '#E5E7EB'}`,
         borderRadius: 14,
         background: '#fff',
-        boxShadow: focused ? '0 0 0 3px #EFF6FF' : '0 1px 2px rgba(17,24,39,0.04)',
+        boxShadow: focused
+          ? '0 0 0 3px #EFF6FF, 0 4px 20px rgba(0,0,0,0.10)'
+          : '0 2px 12px rgba(17,24,39,0.09), 0 1px 3px rgba(17,24,39,0.05)',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         padding: '4px 4px 4px 0',
       }}>
