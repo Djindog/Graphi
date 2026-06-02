@@ -10,7 +10,7 @@ interface Props {
   messages: Message[];
   isGenerating: boolean;
   contextPadding?: number;
-  scrollContainerRef?: React.RefObject<HTMLDivElement>;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export function MessageList({ messages, isGenerating, contextPadding = 0, scrollContainerRef }: Props) {
