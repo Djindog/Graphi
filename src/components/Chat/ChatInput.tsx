@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Crosshair, ArrowUp } from 'lucide-react';
 import type { GripLevel } from '../../types';
+import { Tooltip } from '../Tooltip';
 
 interface Props {
   value: string;
@@ -15,6 +16,13 @@ interface Props {
 }
 
 const GRIP_LEVELS: GripLevel[] = ['off', 'low', 'mid', 'high'];
+
+const GRIP_TOOLTIPS: Record<GripLevel, string> = {
+  off: 'Only the current thread and selected lineage context are used. No semantic search is added.',
+  low: 'Broad search. Pulls up to 15 loosely related nodes into the context suggestions.',
+  mid: 'Balanced search. Pulls up to 8 related nodes with a moderate similarity threshold.',
+  high: 'Strict search. Pulls up to 3 highly similar nodes, keeping context narrow.',
+};
 
 const StopIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -71,24 +79,31 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px 2px 14px' }}>
           {/* Grip selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Crosshair size={13} strokeWidth={2} color="#9CA3AF" />
-              Grip
-            </span>
+            <Tooltip
+              placement="top"
+              width={240}
+              content="Grip controls how aggressively Graphi searches other nodes for related context before you send."
+            >
+              <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Crosshair size={13} strokeWidth={2} color="#9CA3AF" />
+                Grip
+              </span>
+            </Tooltip>
             {GRIP_LEVELS.map(level => (
-              <button
-                key={level}
-                onClick={() => onGripChange(level)}
-                style={{
-                  padding: '4px 9px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer',
-                  background: gripLevel === level ? '#111827' : 'transparent',
-                  color: gripLevel === level ? '#fff' : '#9CA3AF',
-                  fontWeight: gripLevel === level ? 500 : 400,
-                  transition: 'all 0.1s', textTransform: 'capitalize', fontFamily: 'inherit',
-                }}
-              >
-                {level}
-              </button>
+              <Tooltip key={level} placement="top" width={235} content={GRIP_TOOLTIPS[level]}>
+                <button
+                  onClick={() => onGripChange(level)}
+                  style={{
+                    padding: '4px 9px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer',
+                    background: gripLevel === level ? '#111827' : 'transparent',
+                    color: gripLevel === level ? '#fff' : '#9CA3AF',
+                    fontWeight: gripLevel === level ? 500 : 400,
+                    transition: 'all 0.1s', textTransform: 'capitalize', fontFamily: 'inherit',
+                  }}
+                >
+                  {level}
+                </button>
+              </Tooltip>
             ))}
           </div>
 

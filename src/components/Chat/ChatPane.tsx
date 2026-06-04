@@ -14,6 +14,28 @@ import type { Message } from '../../types';
 import type Groq from 'groq-sdk';
 
 const DEBOUNCE_MS = 500;
+const CHAT_SYSTEM_PROMPT =
+  'You are a helpful thinking partner. Answer the latest user message, using context only as supporting material when it is relevant. Do not infer a task from context alone. If the latest user message is unclear, nonsensical, random characters, or has no interpretable request, say you cannot tell what they want and ask them to clarify.';
+
+function isLikelyLowIntentInput(text: string): boolean {
+  const compact = text.trim().replace(/\s+/g, '');
+  if (compact.length <= 1) return true;
+  if (/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(compact)) return true;
+  if (!/[\p{L}\p{N}]/u.test(compact)) return true;
+
+  const chars = [...compact];
+  const mostFrequent = Math.max(...[...new Set(chars)].map(ch => chars.filter(c => c === ch).length));
+  if (chars.length >= 4 && mostFrequent / chars.length >= 0.75) return true;
+
+  const latinOnly = /^[a-zA-Z]+$/.test(compact);
+  const hasWhitespace = /\s/.test(text.trim());
+  const vowelCount = (compact.match(/[aeiouAEIOU]/g) ?? []).length;
+  if (latinOnly && compact.length >= 5 && vowelCount === 0) return true;
+  if (latinOnly && compact.length >= 8 && !hasWhitespace && vowelCount / compact.length < 0.18) return true;
+  if (/^(asdf|qwer|zxcv|hjkl|fdsa|rewq|vcxz){1,}$/i.test(compact)) return true;
+
+  return false;
+}
 
 export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { width?: number; groqClient: InstanceType<typeof Groq> | null; canvasHidden?: boolean }) {
   const {
@@ -51,6 +73,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
 
   const runStage0 = useCallback(async (message: string) => {
     if (!currentNodeId || !message.trim()) { clearContext(); return; }
+    if (isLikelyLowIntentInput(message)) { clearContext(); return; }
     const projectId = currentNode?.projectId;
     if (!projectId) return;
     const projectNodes = getNodesByProject(projectId);
@@ -94,7 +117,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     const userMsg: Message = { id: uuidv4(), nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: new Date().toISOString() };
     addMessage(userMsg);
 
-    const contextNodeIds = activeContextNodeIds;
+    const lowIntentInput = isLikelyLowIntentInput(userMessage);
+    const contextNodeIds = lowIntentInput ? [] : activeContextNodeIds;
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
     const ancestors = getAllAncestors(currentNodeId);
 
@@ -110,9 +134,13 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     if (lineageContent) parts.push(`Context from lineage:\n${lineageContent}`);
     if (referencedContent) parts.push(`Referenced nodes:\n${referencedContent}`);
     if (recommendedContent) parts.push(`Related nodes:\n${recommendedContent}`);
-    const userPrompt = parts.length ? `${parts.join('\n\n')}\n\n---\nUser: ${userMessage}` : userMessage;
+    const userPrompt = lowIntentInput
+      ? `The latest user message appears unclear or meaningless. Do not answer from context or previous conversation. Ask the user to clarify what they want.\n\nLatest user message:\n${userMessage}`
+      : parts.length
+      ? `Latest user message:\n${userMessage}\n\nAvailable context, use only if relevant to the latest user message:\n${parts.join('\n\n')}`
+      : userMessage;
 
-    const historyMsgs = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const historyMsgs = lowIntentInput ? [] : messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     const assistantMsgId = uuidv4();
     addMessage({ id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: '', createdAt: new Date().toISOString() });
@@ -122,7 +150,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       const stream = await groqClient.chat.completions.create({
         model: 'llama-3.1-8b-instant',
         messages: [
-          { role: 'system', content: 'You are a helpful thinking partner. Consider the context carefully.' },
+          { role: 'system', content: CHAT_SYSTEM_PROMPT },
           ...historyMsgs,
           { role: 'user', content: userPrompt },
         ],
@@ -155,7 +183,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       ]);
 
       const isFirst = messages.filter(m => m.role === 'user').length === 0;
-      if (isFirst) {
+      if (isFirst && !lowIntentInput) {
         const title = await generateTitle(userMessage, fullResponse, groqClient);
         await renameNode(currentNodeId, title);
       }

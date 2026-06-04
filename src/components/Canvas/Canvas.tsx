@@ -7,6 +7,7 @@ import { useFoldStore } from '../../stores/foldStore';
 import { TreeCanvas } from './TreeCanvas';
 import { ForceCanvas } from './ForceCanvas';
 import { NodeToolOverlay } from './NodeToolOverlay';
+import { Tooltip } from '../Tooltip';
 import type { Node, Project } from '../../types';
 
 interface Props {
@@ -36,7 +37,6 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameVal, setRenameVal] = useState('');
   const [ctrlToast, setCtrlToast] = useState(false);
-  const [eyeTooltip, setEyeTooltip] = useState(false);
   const ctrlToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevDisplayMode = useRef(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -179,11 +179,17 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
       {/* Toolbar */}
       <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
         {/* Eye toggle — just icon, no box */}
-        <div style={{ position: 'relative' }}>
+        <Tooltip
+          placement="bottom"
+          width={260}
+          content={
+            contextDisplayMode
+              ? 'Hide context highlighting on the canvas. The selected context remains saved for the next send.'
+              : 'Show which nodes will be used as context: ancestors, explicitly referenced nodes, and related recommendations.'
+          }
+        >
           <button
             onClick={toggleContextDisplay}
-            onMouseEnter={() => setEyeTooltip(true)}
-            onMouseLeave={() => setEyeTooltip(false)}
             style={{
               width: 30, height: 30, border: 'none', cursor: 'pointer',
               background: 'transparent',
@@ -194,24 +200,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           >
             {contextDisplayMode ? <Eye size={15} strokeWidth={2} /> : <EyeOff size={15} strokeWidth={2} />}
           </button>
-          {eyeTooltip && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
-              background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
-              padding: '5px 10px', borderRadius: 7, whiteSpace: 'nowrap',
-              pointerEvents: 'none', zIndex: 100,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            }}>
-              <div style={{
-                position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)',
-                width: 0, height: 0,
-                borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
-                borderBottom: '5px solid #111827',
-              }} />
-              {contextDisplayMode ? 'Hide context' : 'Show context'}
-            </div>
-          )}
-        </div>
+        </Tooltip>
 
         {/* Tree / Force selector pill */}
         <div style={{
@@ -219,22 +208,26 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           background: '#fff', border: '1px solid #E5E7EB', borderRadius: 11,
           padding: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
         }}>
-          {([['tree', <GitFork key="tf" size={14} strokeWidth={2} />], ['force', <Share2 key="ff" size={14} strokeWidth={2} />]] as [string, React.ReactNode][]).map(([mode, icon]) => (
-            <button
-              key={mode as string}
-              onClick={() => setGraphMode(mode as 'tree' | 'force')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 12px', fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: graphMode === mode ? '#111827' : 'transparent',
-                color: graphMode === mode ? '#fff' : '#6B7280',
-                fontWeight: graphMode === mode ? 500 : 400,
-                transition: 'all 0.15s', textTransform: 'capitalize', fontFamily: 'inherit',
-              }}
-            >
-              {icon}
-              {mode as string}
-            </button>
+          {([
+            ['tree', <GitFork key="tf" size={14} strokeWidth={2} />, 'Tree view arranges nodes by parent and child relationships so the branch structure is easy to scan.'],
+            ['force', <Share2 key="ff" size={14} strokeWidth={2} />, 'Force view lays nodes out as a physics map for exploring clusters and spatial relationships.'],
+          ] as [string, React.ReactNode, string][]).map(([mode, icon, tooltip]) => (
+            <Tooltip key={mode as string} placement="bottom" width={245} content={tooltip}>
+              <button
+                onClick={() => setGraphMode(mode as 'tree' | 'force')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: graphMode === mode ? '#111827' : 'transparent',
+                  color: graphMode === mode ? '#fff' : '#6B7280',
+                  fontWeight: graphMode === mode ? 500 : 400,
+                  transition: 'all 0.15s', textTransform: 'capitalize', fontFamily: 'inherit',
+                }}
+              >
+                {icon}
+                {mode as string}
+              </button>
+            </Tooltip>
           ))}
         </div>
       </div>
