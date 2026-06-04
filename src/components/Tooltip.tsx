@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 type Placement = 'top' | 'bottom';
 
@@ -11,26 +12,38 @@ interface TooltipProps {
 
 export function Tooltip({ children, content, placement = 'top', width = 220 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const isTop = placement === 'top';
+
+  const show = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPos({
+      x: rect.left + rect.width / 2,
+      y: isTop ? rect.top : rect.bottom,
+    });
+    setVisible(true);
+  };
 
   return (
     <span
-      onMouseEnter={() => setVisible(true)}
+      ref={triggerRef}
+      onMouseEnter={show}
       onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
+      onFocus={show}
       onBlur={() => setVisible(false)}
       style={{ position: 'relative', display: 'inline-flex' }}
     >
       {children}
-      {visible && (
+      {visible && createPortal(
         <span
           role="tooltip"
           style={{
-            position: 'absolute',
-            left: '50%',
-            top: isTop ? undefined : 'calc(100% + 9px)',
-            bottom: isTop ? 'calc(100% + 9px)' : undefined,
-            transform: 'translateX(-50%)',
+            position: 'fixed',
+            left: pos.x,
+            top: isTop ? pos.y : pos.y + 9,
+            transform: isTop ? 'translate(-50%, calc(-100% - 9px))' : 'translateX(-50%)',
             width,
             maxWidth: 'min(280px, calc(100vw - 32px))',
             background: '#111827',
@@ -42,7 +55,7 @@ export function Tooltip({ children, content, placement = 'top', width = 220 }: T
             borderRadius: 7,
             textAlign: 'left',
             pointerEvents: 'none',
-            zIndex: 3000,
+            zIndex: 9999,
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             whiteSpace: 'normal',
           }}
@@ -51,18 +64,25 @@ export function Tooltip({ children, content, placement = 'top', width = 220 }: T
             style={{
               position: 'absolute',
               left: '50%',
-              top: isTop ? '100%' : -4,
               transform: 'translateX(-50%)',
               width: 0,
               height: 0,
-              borderLeft: '5px solid transparent',
-              borderRight: '5px solid transparent',
-              borderTop: isTop ? '5px solid #111827' : undefined,
-              borderBottom: isTop ? undefined : '5px solid #111827',
+              ...(isTop ? {
+                top: '100%',
+                borderLeft: '5px solid transparent',
+                borderRight: '5px solid transparent',
+                borderTop: '5px solid #111827',
+              } : {
+                top: -4,
+                borderLeft: '5px solid transparent',
+                borderRight: '5px solid transparent',
+                borderBottom: '5px solid #111827',
+              }),
             }}
           />
           {content}
-        </span>
+        </span>,
+        document.body
       )}
     </span>
   );
