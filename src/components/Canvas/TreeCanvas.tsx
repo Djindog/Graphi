@@ -104,7 +104,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     const inDanger = _dangerNodeIds.includes(nodeId);
 
     if (inDanger)      return { stroke: '#FCA5A5', strokeWidth: 1.5, fill: '#FEF2F2', opacity: 1,    glow: false, textColor: '#EF4444', shadow: 'none' };
-    if (isSelected)    return { stroke: BLUE,      strokeWidth: 4,   fill: '#EFF6FF', opacity: 1,    glow: true,  textColor: '#1D4ED8', shadow: SHADOW_NODE };
+    if (isSelected)    return { stroke: BLUE,      strokeWidth: 4,   fill: '#BFDBFE', opacity: 1,    glow: true,  textColor: '#1D4ED8', shadow: SHADOW_NODE };
     if (isActive)      return { stroke: BLUE,      strokeWidth: 1.5, fill: '#EFF6FF', opacity: 1,    glow: true,  textColor: '#1D4ED8', shadow: SHADOW_NODE };
     if (isDeactivated) return { stroke: BLUE_FADED,strokeWidth: 1,   fill: '#F9FAFB', opacity: 0.5,  glow: false, textColor: '#93C5FD', shadow: 'none' };
     if (inContextMode) return { stroke: GRAY,      strokeWidth: 1,   fill: '#FFFFFF', opacity: 0.4,  glow: false, textColor: '#9CA3AF', shadow: 'none' };
@@ -216,33 +216,41 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     svg.call(zoom);
     zoomRef.current = zoom;
 
-    // Right-click drag for panning
+    // Right-click or left-click-on-background drag for panning
     let isPanning = false;
     svg.on('mousedown', (event: MouseEvent) => {
-      if (event.button === 2) { // right-click
-        event.preventDefault();
-        isPanning = true;
-        dragStateRef.current = { startX: event.clientX, startY: event.clientY };
-        const startTransform = d3.zoomTransform(svgRef.current!);
+      const isRightClick = event.button === 2;
+      const isLeftClickOnBackground = event.button === 0 && !(event.target as Element).closest('.tree-node');
+      if (!isRightClick && !isLeftClickOnBackground) return;
 
-        const onMouseMove = (moveEvent: MouseEvent) => {
-          if (!isPanning || !dragStateRef.current) return;
-          const dx = moveEvent.clientX - dragStateRef.current.startX;
-          const dy = moveEvent.clientY - dragStateRef.current.startY;
-          const newTransform = startTransform.translate(dx, dy);
-          d3.select(svgRef.current as SVGSVGElement).call(zoom.transform, newTransform);
-        };
+      event.preventDefault();
+      isPanning = true;
+      let hasDragged = false;
+      dragStateRef.current = { startX: event.clientX, startY: event.clientY };
+      const startTransform = d3.zoomTransform(svgRef.current!);
 
-        const onMouseUp = () => {
-          isPanning = false;
-          dragStateRef.current = null;
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-        };
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!isPanning || !dragStateRef.current) return;
+        const dx = moveEvent.clientX - dragStateRef.current.startX;
+        const dy = moveEvent.clientY - dragStateRef.current.startY;
+        if (!hasDragged && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) hasDragged = true;
+        const newTransform = startTransform.translate(dx, dy);
+        d3.select(svgRef.current as SVGSVGElement).call(zoom.transform, newTransform);
+      };
 
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-      }
+      const onMouseUp = () => {
+        isPanning = false;
+        dragStateRef.current = null;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        if (hasDragged) {
+          // suppress the click event that would fire after mouseup
+          window.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+        }
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
     });
 
     if (nodes.length === 0) return;
