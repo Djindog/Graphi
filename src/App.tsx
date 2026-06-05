@@ -70,7 +70,7 @@ export default function App() {
   const grabTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragState = useRef<{ startX: number; startWidth: number; maxW: number } | null>(null);
 
-  const { setFromSupabase, subscribeToProjectNodes, getNodesByProject, undo } = useDagStore();
+  const { setFromSupabase, subscribeToProjectNodes, undo } = useDagStore();
   const storeNodes = useDagStore(s => s.nodes);
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
 
