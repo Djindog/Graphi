@@ -71,6 +71,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const reorderDragRef = useRef<{ nodeId: string; siblings: Node[]; longClickTimer: ReturnType<typeof setTimeout> } | null>(null);
   const reorderStateRef = useRef<{ draggingNodeId: string | null; dropTargetIndex: number | null; elevation: number }>({ draggingNodeId: null, dropTargetIndex: null, elevation: 0 });
+  const justDroppedNodeIdRef = useRef<string | null>(null);
 
   const navigationTrigger = useCanvasStore(s => s.navigationTrigger);
   const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
@@ -151,7 +152,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     );
   }, [nodes]);
 
-  const centerOnNode = useCallback((nodeId: string, smooth = true) => {
+  const centerOnNode = useCallback((nodeId: string) => {
     if (!svgRef.current || !treeDataRef.current || !zoomRef.current) return;
     const nodePos = treeDataRef.current.nodes.get(nodeId);
     if (!nodePos || nodePos.x === undefined || nodePos.y === undefined) return;
@@ -336,6 +337,16 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('stroke-width', ns.strokeWidth)
         .attr('filter', ns.shadow !== 'none' ? 'url(#node-shadow)' : '');
 
+      // Add blue tint if this node was just dropped
+      if (nodeData.id === justDroppedNodeIdRef.current) {
+        g.append('rect')
+          .attr('class', 'drop-tint-effect')
+          .attr('width', initW).attr('height', NODE_H).attr('rx', 12)
+          .attr('fill', '#2563EB')
+          .attr('opacity', 0.2)
+          .attr('pointer-events', 'none');
+      }
+
       const fullTitle = nodeData.title || 'Untitled';
       const [fl1, fl2] = wrapTitle(fullTitle);
       const initX = isCurrent ? expW / 2 : NODE_W / 2;
@@ -454,7 +465,6 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       let isDragging = false;
 
       g.on('mousedown', (event: MouseEvent) => {
-        console.log('Mousedown fired on node:', nodeData.id, 'Button:', event.button);
         if (event.button !== 0) return; // only left-click
         event.stopPropagation();
 
@@ -462,11 +472,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           .filter(n => n.parentId === nodeData.parentId && n.projectId === nodeData.projectId)
           .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-        console.log('Starting long click timer for:', nodeData.id, 'with', siblings.length, 'siblings');
-
         // Start 200ms timer for long left-click (reorder mode)
         longClickTimer = setTimeout(() => {
-          console.log('Long click threshold reached for:', nodeData.id);
           isDragging = true;
           reorderDragRef.current = { nodeId: nodeData.id, siblings, longClickTimer: null as any };
           reorderStateRef.current.draggingNodeId = nodeData.id;
@@ -475,19 +482,18 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           // Cursor feedback & prevent text selection
           const svg = d3.select(svgRef.current as SVGSVGElement);
           svg.style('cursor', 'grab').style('user-select', 'none');
-          console.log('Long click drag started for node:', nodeData.id);
+
+          // Update opacity of dragged node immediately
+          svg.select<SVGGElement>(`g.tree-node[data-id="${nodeData.id}"]`)
+            .attr('opacity', 0.3);
         }, 200);
 
         const handleMouseMove = (moveEvent: MouseEvent) => {
-          console.log('MouseMove fired, isDragging:', isDragging);
           if (!isDragging) return;
           if (!reorderDragRef.current) return;
 
-          console.log('Mouse at:', moveEvent.clientX, moveEvent.clientY);
-
           const svg = d3.select(svgRef.current as SVGSVGElement);
           const transform = d3.zoomTransform(svgRef.current!);
-          const mouseWorldY = (moveEvent.clientY - svgRef.current!.getBoundingClientRect().top - transform.y) / transform.k;
 
           // Find insertion point based on X position (siblings are horizontal)
           const draggedIndex = reorderDragRef.current.siblings.findIndex(n => n.id === nodeData.id);
@@ -506,7 +512,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           if (siblingsWithPos.length > 0) {
             let spacing = 80;
             if (siblingsWithPos.length > 1) {
-              spacing = (siblingsWithPos[siblingsWithPos.length - 1].pos.x - siblingsWithPos[0].pos.x) / siblingsWithPos.length;
+              spacing = (siblingsWithPos[siblingsWithPos.length - 1].pos.x - siblingsWithPos[0].pos.x) / (siblingsWithPos.length - 1);
             }
             dividerXPositions.push(siblingsWithPos[0].pos.x - spacing / 2); // Before first
             for (let i = 0; i < siblingsWithPos.length - 1; i++) {
@@ -596,7 +602,6 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         };
 
         const handleMouseUp = async () => {
-          console.log('MouseUp fired, isDragging:', isDragging);
           if (longClickTimer) clearTimeout(longClickTimer);
 
           if (isDragging && reorderDragRef.current && reorderStateRef.current.dropTargetIndex !== null) {
@@ -604,9 +609,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
             const oldIndex = reorderDragRef.current.siblings.findIndex(n => n.id === nodeData.id);
 
             // Check if divider is adjacent (cancel movement)
-            if (dividerIndex === oldIndex || dividerIndex === oldIndex + 1) {
-              console.log('Drop on cancel divider, no reorder');
-            } else {
+            if (dividerIndex !== oldIndex && dividerIndex !== oldIndex + 1) {
               // Convert divider index to insertion index
               let newIndex = dividerIndex;
               if (dividerIndex > oldIndex + 1) {
@@ -614,11 +617,21 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
                 newIndex = dividerIndex - 1;
               }
 
-              console.log('Reordering node:', nodeData.id);
-              console.log('Old index:', oldIndex, 'Divider index:', dividerIndex, 'New index:', newIndex);
-              console.log('Siblings:', reorderDragRef.current.siblings.map((s, i) => `[${i}]${s.title||"Untitled"}`).join(', '));
+              // Mark node for tint BEFORE reordering so it renders with tint
+              justDroppedNodeIdRef.current = nodeData.id;
               await useDagStore.getState().reorderSiblings(nodeData.id, newIndex);
-              console.log('Reorder completed');
+
+              // Fade out the tint after tree re-renders
+              setTimeout(() => {
+                const svg = d3.select(svgRef.current as SVGSVGElement);
+                svg.selectAll<SVGRectElement, unknown>('rect.drop-tint-effect')
+                  .transition()
+                  .duration(1000)
+                  .ease(d3.easeCubicOut)
+                  .attr('opacity', 0)
+                  .remove();
+                justDroppedNodeIdRef.current = null;
+              }, 50);
             }
           }
 
@@ -627,8 +640,22 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           document.removeEventListener('mouseup', handleMouseUp);
           const svg = d3.select(svgRef.current as SVGSVGElement);
           svg.selectAll<SVGLineElement, unknown>('line.drop-indicator').remove();
-          svg.selectAll<SVGGElement, unknown>('g.ghost-node').remove();
+
+          // Animate ghost node away before removing
+          svg.selectAll<SVGGElement, unknown>('g.ghost-node')
+            .transition()
+            .duration(200)
+            .ease(d3.easeCubicIn)
+            .attr('opacity', 0)
+            .remove();
+
           svg.style('cursor', 'auto').style('user-select', 'auto');
+
+          // Restore opacity of dragged node
+          const ns = getNodeStyle(nodeData.id);
+          svg.select<SVGGElement>(`g.tree-node[data-id="${nodeData.id}"]`)
+            .attr('opacity', ns.opacity);
+
           reorderDragRef.current = null;
           reorderStateRef.current = { draggingNodeId: null, dropTargetIndex: null, elevation: 0 };
           isDragging = false;
@@ -797,12 +824,12 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     if (navigationTrigger === 'double-click') {
       // Always center on double-click
-      centerOnNode(activeNodeId, true);
+      centerOnNode(activeNodeId);
       setNavigationTrigger(null);
     } else if (navigationTrigger === 'arrow' || navigationTrigger === 'button') {
       // Center only if node is not fully visible
       if (!isNodeFullyVisible(activeNodeId)) {
-        centerOnNode(activeNodeId, true);
+        centerOnNode(activeNodeId);
       }
       setNavigationTrigger(null);
     } else if (navigationTrigger === 'single-click') {
