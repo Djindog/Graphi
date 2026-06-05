@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { GitFork, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, Trash2, Settings } from 'lucide-react';
+import { GitFork, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, Trash2, Settings, HelpCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useDagStore } from '../../stores/dagStore';
 import { NewProjectModal } from '../NewProjectModal';
@@ -17,12 +17,13 @@ interface SidebarProps {
   onProjectRenamed: (projectId: string, name: string) => void;
   onError: (msg: string) => void;
   onOpenSettings: () => void;
+  onOpenTutorial: () => void;
 }
 
 
 export function Sidebar({
   collapsed, onToggle, activeProjectId, projects,
-  onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onError, onOpenSettings,
+  onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onError, onOpenSettings, onOpenTutorial,
 }: SidebarProps) {
   const [showModal, setShowModal] = useState(false);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
@@ -258,15 +259,26 @@ export function Sidebar({
           >
             Sign out
           </button>
-          <button
-            onClick={onOpenSettings}
-            title="API key settings"
-            style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-          >
-            <Settings size={15} />
-          </button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              onClick={onOpenTutorial}
+              title="Tutorial"
+              style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+            >
+              <HelpCircle size={15} />
+            </button>
+            <button
+              onClick={onOpenSettings}
+              title="API key settings"
+              style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+            >
+              <Settings size={15} />
+            </button>
+          </div>
         </div>
       </div>
 
