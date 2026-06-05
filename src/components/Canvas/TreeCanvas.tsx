@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
+import { useCanvasStore } from '../../stores/canvasStore';
+import { useDagStore } from '../../stores/dagStore';
 import type { Node } from '../../types';
 
 interface Props {
@@ -64,6 +66,14 @@ function wrapTitle(title: string): [string, string | null] {
 export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const treeDataRef = useRef<{ nodes: Map<string, { x: number; y: number }>; width: number; height: number } | null>(null);
+  const dragStateRef = useRef<{ startX: number; startY: number } | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const reorderDragRef = useRef<{ nodeId: string; siblings: Node[]; longClickTimer: ReturnType<typeof setTimeout> } | null>(null);
+  const reorderStateRef = useRef<{ draggingNodeId: string | null; dropTargetIndex: number | null; elevation: number }>({ draggingNodeId: null, dropTargetIndex: null, elevation: 0 });
+
+  const navigationTrigger = useCanvasStore(s => s.navigationTrigger);
+  const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
 
   // Stable refs for visual state — Effect 2 reads these without re-running Effect 1
   const activeNodeIdRef = useRef(activeNodeId);
@@ -119,6 +129,44 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     return                                         { stroke: BLUE,       strokeWidth: 2,   opacity: 1   };
   }, []); // stable — reads from refs, no deps
 
+  const isNodeFullyVisible = useCallback((nodeId: string): boolean => {
+    if (!svgRef.current || !treeDataRef.current) return false;
+    const nodePos = treeDataRef.current.nodes.get(nodeId);
+    if (!nodePos) return false;
+
+    const svg = svgRef.current;
+    const transform = d3.zoomTransform(svg);
+    const screenX = transform.applyX(nodePos.x);
+    const screenY = transform.applyY(nodePos.y);
+
+    const padding = 10; // pixels of buffer
+    const nodeW = (expandedWidth(nodes.find(n => n.id === nodeId)?.title ?? null) || NODE_W) * transform.k;
+    const nodeH = NODE_H * transform.k;
+
+    return (
+      screenX - nodeW / 2 >= padding &&
+      screenX + nodeW / 2 <= svg.clientWidth - padding &&
+      screenY - nodeH / 2 >= padding &&
+      screenY + nodeH / 2 <= svg.clientHeight - padding
+    );
+  }, [nodes]);
+
+  const centerOnNode = useCallback((nodeId: string, smooth = true) => {
+    if (!svgRef.current || !treeDataRef.current || !zoomRef.current) return;
+    const nodePos = treeDataRef.current.nodes.get(nodeId);
+    if (!nodePos || nodePos.x === undefined || nodePos.y === undefined) return;
+
+    const svg = svgRef.current;
+    const k = d3.zoomTransform(svg).k;
+
+    // Center node: screenX = k * nodeX + x, so x = screenX - k * nodeX
+    const newX = svg.clientWidth / 2 - k * nodePos.x;
+    const newY = svg.clientHeight / 2 - k * nodePos.y;
+    const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
+
+    d3.select(svg).call(zoomRef.current.transform, newTransform);
+  }, []);
+
   // ── Effect 1: structure + layout ──────────────────────────────────────────
   // Runs only when node structure or fold state changes.
   useEffect(() => {
@@ -158,8 +206,43 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.15, 4])
+      .filter((event: any) => {
+        // Allow scroll/pinch zoom, but disable default left-click drag
+        if (event.type === 'mousedown' || event.type === 'touchstart') return false;
+        return true;
+      })
       .on('zoom', (event) => root.attr('transform', event.transform));
     svg.call(zoom);
+    zoomRef.current = zoom;
+
+    // Right-click drag for panning
+    let isPanning = false;
+    svg.on('mousedown', (event: MouseEvent) => {
+      if (event.button === 2) { // right-click
+        event.preventDefault();
+        isPanning = true;
+        dragStateRef.current = { startX: event.clientX, startY: event.clientY };
+        const startTransform = d3.zoomTransform(svgRef.current!);
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+          if (!isPanning || !dragStateRef.current) return;
+          const dx = moveEvent.clientX - dragStateRef.current.startX;
+          const dy = moveEvent.clientY - dragStateRef.current.startY;
+          const newTransform = startTransform.translate(dx, dy);
+          d3.select(svgRef.current as SVGSVGElement).call(zoom.transform, newTransform);
+        };
+
+        const onMouseUp = () => {
+          isPanning = false;
+          dragStateRef.current = null;
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      }
+    });
 
     if (nodes.length === 0) return;
 
@@ -169,7 +252,10 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     const buildTree = (node: Node): TreeNode => ({
       data: node,
-      children: nodes.filter(n => n.parentId === node.id).map(buildTree),
+      children: nodes
+        .filter(n => n.parentId === node.id)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map(buildTree),
     });
 
     const hierarchy = d3.hierarchy(buildTree(rootNode), d => d.children);
@@ -178,6 +264,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       .separation((a, b) => a.parent === b.parent ? 1 : 1);
 
     const treeData = treeLayout(hierarchy);
+
+    // Store tree layout data in ref for visibility checking and centering
+    const nodePositions = new Map<string, { x: number; y: number }>();
+    treeData.descendants().forEach(d => {
+      const nodeData = (d.data as TreeNode).data;
+      nodePositions.set(nodeData.id, { x: d.x, y: d.y });
+    });
+    treeDataRef.current = { nodes: nodePositions, width, height };
 
     const allX = treeData.descendants().map(d => d.x);
     const minX = Math.min(...allX);
@@ -355,17 +449,198 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         onNodeMenuClick(nodeData, overlayX, overlayY, nodeScreenX, nodeScreenY, scaledW, scaledH);
       });
 
-      // Right-click → open tool overlay at cursor
+      // Left-click mousedown → start timer for long hold (reorder mode)
+      let longClickTimer: ReturnType<typeof setTimeout> | null = null;
+      let isDragging = false;
+
+      g.on('mousedown', (event: MouseEvent) => {
+        console.log('Mousedown fired on node:', nodeData.id, 'Button:', event.button);
+        if (event.button !== 0) return; // only left-click
+        event.stopPropagation();
+
+        const siblings = nodes
+          .filter(n => n.parentId === nodeData.parentId && n.projectId === nodeData.projectId)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        console.log('Starting long click timer for:', nodeData.id, 'with', siblings.length, 'siblings');
+
+        // Start 200ms timer for long left-click (reorder mode)
+        longClickTimer = setTimeout(() => {
+          console.log('Long click threshold reached for:', nodeData.id);
+          isDragging = true;
+          reorderDragRef.current = { nodeId: nodeData.id, siblings, longClickTimer: null as any };
+          reorderStateRef.current.draggingNodeId = nodeData.id;
+          reorderStateRef.current.elevation = 8;
+
+          // Cursor feedback & prevent text selection
+          const svg = d3.select(svgRef.current as SVGSVGElement);
+          svg.style('cursor', 'grab').style('user-select', 'none');
+          console.log('Long click drag started for node:', nodeData.id);
+        }, 200);
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+          console.log('MouseMove fired, isDragging:', isDragging);
+          if (!isDragging) return;
+          if (!reorderDragRef.current) return;
+
+          console.log('Mouse at:', moveEvent.clientX, moveEvent.clientY);
+
+          const svg = d3.select(svgRef.current as SVGSVGElement);
+          const transform = d3.zoomTransform(svgRef.current!);
+          const mouseWorldY = (moveEvent.clientY - svgRef.current!.getBoundingClientRect().top - transform.y) / transform.k;
+
+          // Find insertion point based on X position (siblings are horizontal)
+          const draggedIndex = reorderDragRef.current.siblings.findIndex(n => n.id === nodeData.id);
+          let closestInsertIndex = draggedIndex;
+          let minDist = Infinity;
+
+          const sibs = reorderDragRef.current.siblings;
+          const siblingsWithPos = sibs
+            .map(s => ({ node: s, pos: treeDataRef.current?.nodes.get(s.id) }))
+            .filter(s => s.pos) as { node: Node; pos: { x: number; y: number } }[];
+
+          siblingsWithPos.sort((a, b) => a.pos.x - b.pos.x);
+
+          // Calculate divider X positions with equal spacing
+          const dividerXPositions: number[] = [];
+          if (siblingsWithPos.length > 0) {
+            let spacing = 80;
+            if (siblingsWithPos.length > 1) {
+              spacing = (siblingsWithPos[siblingsWithPos.length - 1].pos.x - siblingsWithPos[0].pos.x) / siblingsWithPos.length;
+            }
+            dividerXPositions.push(siblingsWithPos[0].pos.x - spacing / 2); // Before first
+            for (let i = 0; i < siblingsWithPos.length - 1; i++) {
+              dividerXPositions.push((siblingsWithPos[i].pos.x + siblingsWithPos[i + 1].pos.x) / 2);
+            }
+            dividerXPositions.push(siblingsWithPos[siblingsWithPos.length - 1].pos.x + spacing / 2); // After last
+          }
+
+          // Find closest divider to mouse X position
+          const mouseWorldX = (moveEvent.clientX - svgRef.current!.getBoundingClientRect().left - transform.x) / transform.k;
+          dividerXPositions.forEach((x, index) => {
+            const dist = Math.abs(x - mouseWorldX);
+            if (dist < minDist) {
+              minDist = dist;
+              closestInsertIndex = index;
+            }
+          });
+
+          reorderStateRef.current.dropTargetIndex = closestInsertIndex;
+
+          // Draw vertical divider lines between siblings (horizontal layout)
+          svg.selectAll<SVGLineElement, unknown>('line.drop-indicator').remove();
+          const lineHeight = 100;
+
+          dividerXPositions.forEach((x, index) => {
+            const screenX = transform.applyX(x);
+            const screenY = transform.applyY(siblingsWithPos[0]?.pos.y ?? 0);
+            const isTarget = index === closestInsertIndex;
+            svg.append('line')
+              .attr('class', 'drop-indicator')
+              .attr('x1', screenX)
+              .attr('x2', screenX)
+              .attr('y1', screenY - lineHeight / 2)
+              .attr('y2', screenY + lineHeight / 2)
+              .attr('stroke', isTarget ? '#0066FF' : '#D1D5DB')
+              .attr('stroke-width', isTarget ? 3 : 1.5)
+              .attr('opacity', isTarget ? 0.9 : 0.4)
+              .attr('pointer-events', 'none');
+          });
+
+          // Draw ghost/preview node following cursor (in screen coordinates)
+          svg.selectAll<SVGGElement, unknown>('g.ghost-node').remove();
+          const ghostScreenX = moveEvent.clientX - svgRef.current!.getBoundingClientRect().left;
+          const ghostScreenY = moveEvent.clientY - svgRef.current!.getBoundingClientRect().top;
+          const scaledW = expW * transform.k;
+          const scaledH = NODE_H * transform.k;
+
+          const ghostGroup = svg.append('g')
+            .attr('class', 'ghost-node')
+            .attr('transform', `translate(${ghostScreenX - scaledW / 2},${ghostScreenY - scaledH / 2})`);
+
+          ghostGroup.append('rect')
+            .attr('width', scaledW)
+            .attr('height', scaledH)
+            .attr('rx', 12 * transform.k)
+            .attr('fill', '#EFF6FF')
+            .attr('stroke', '#0066FF')
+            .attr('stroke-width', 2 * transform.k)
+            .attr('stroke-dasharray', `${6 * transform.k},${3 * transform.k}`)
+            .attr('opacity', 0.7);
+
+          const [l1, l2] = wrapTitle(nodeData.title || 'Untitled');
+          const fontSize = 13.5 * transform.k;
+          ghostGroup.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('x', scaledW / 2)
+            .attr('y', l2 ? scaledH / 2 - 8 * transform.k : scaledH / 2)
+            .attr('fill', '#1D4ED8')
+            .attr('font-size', `${fontSize}px`)
+            .attr('font-weight', '500')
+            .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+            .attr('pointer-events', 'none')
+            .text(l1);
+
+          if (l2) {
+            ghostGroup.append('text')
+              .attr('text-anchor', 'middle')
+              .attr('x', scaledW / 2)
+              .attr('y', scaledH / 2 + 8 * transform.k)
+              .attr('fill', '#1D4ED8')
+              .attr('font-size', `${fontSize}px`)
+              .attr('font-weight', '500')
+              .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
+              .attr('pointer-events', 'none')
+              .text(l2);
+          }
+        };
+
+        const handleMouseUp = async () => {
+          console.log('MouseUp fired, isDragging:', isDragging);
+          if (longClickTimer) clearTimeout(longClickTimer);
+
+          if (isDragging && reorderDragRef.current && reorderStateRef.current.dropTargetIndex !== null) {
+            const dividerIndex = reorderStateRef.current.dropTargetIndex;
+            const oldIndex = reorderDragRef.current.siblings.findIndex(n => n.id === nodeData.id);
+
+            // Check if divider is adjacent (cancel movement)
+            if (dividerIndex === oldIndex || dividerIndex === oldIndex + 1) {
+              console.log('Drop on cancel divider, no reorder');
+            } else {
+              // Convert divider index to insertion index
+              let newIndex = dividerIndex;
+              if (dividerIndex > oldIndex + 1) {
+                // Divider after current position: subtract 1 to account for removal
+                newIndex = dividerIndex - 1;
+              }
+
+              console.log('Reordering node:', nodeData.id);
+              console.log('Old index:', oldIndex, 'Divider index:', dividerIndex, 'New index:', newIndex);
+              console.log('Siblings:', reorderDragRef.current.siblings.map((s, i) => `[${i}]${s.title||"Untitled"}`).join(', '));
+              await useDagStore.getState().reorderSiblings(nodeData.id, newIndex);
+              console.log('Reorder completed');
+            }
+          }
+
+          // Cleanup
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+          const svg = d3.select(svgRef.current as SVGSVGElement);
+          svg.selectAll<SVGLineElement, unknown>('line.drop-indicator').remove();
+          svg.selectAll<SVGGElement, unknown>('g.ghost-node').remove();
+          svg.style('cursor', 'auto').style('user-select', 'auto');
+          reorderDragRef.current = null;
+          reorderStateRef.current = { draggingNodeId: null, dropTargetIndex: null, elevation: 0 };
+          isDragging = false;
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      });
+
       g.on('contextmenu', (event: MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
-        const svgRect = svgRef.current!.getBoundingClientRect();
-        const transform = d3.zoomTransform(svgRef.current!);
-        const scaledW = expW * transform.k;
-        const scaledH = NODE_H * transform.k;
-        const nodeScreenX = svgRect.left + transform.applyX(d.x - expW / 2);
-        const nodeScreenY = svgRect.top + transform.applyY(d.y - NODE_H / 2);
-        onNodeMenuClick(nodeData, event.clientX + 8, event.clientY, nodeScreenX, nodeScreenY, scaledW, scaledH);
       });
 
       // Fold badge
@@ -448,11 +723,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
+          setNavigationTrigger('double-click');
           onNodeDoubleClick(nodeData.id);
         } else {
           const isCtrl = event.ctrlKey || event.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
+            setNavigationTrigger('single-click');
             if (isCtrl) onNodeCtrlClick(nodeData);
             else onNodeClick(nodeData);
           }, 220);
@@ -513,6 +790,26 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('opacity', es.opacity);
     });
   }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, getNodeStyle, getEdgeStyle]);
+
+  // Effect 3: Handle navigation-triggered centering
+  useEffect(() => {
+    if (!activeNodeId || !navigationTrigger) return;
+
+    if (navigationTrigger === 'double-click') {
+      // Always center on double-click
+      centerOnNode(activeNodeId, true);
+      setNavigationTrigger(null);
+    } else if (navigationTrigger === 'arrow' || navigationTrigger === 'button') {
+      // Center only if node is not fully visible
+      if (!isNodeFullyVisible(activeNodeId)) {
+        centerOnNode(activeNodeId, true);
+      }
+      setNavigationTrigger(null);
+    } else if (navigationTrigger === 'single-click') {
+      // No centering on single click
+      setNavigationTrigger(null);
+    }
+  }, [activeNodeId, navigationTrigger, centerOnNode, isNodeFullyVisible, setNavigationTrigger]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }} onContextMenu={e => e.preventDefault()}>

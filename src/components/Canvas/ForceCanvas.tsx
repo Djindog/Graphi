@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
+import { useCanvasStore } from '../../stores/canvasStore';
 import type { Node } from '../../types';
 
 interface Props {
@@ -60,6 +61,11 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
   const simNodesRef = useRef<SimNode[]>([]);
   const nodeMapRef = useRef<Map<string, Node>>(new Map());
+  const dragStateRef = useRef<{ startX: number; startY: number } | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  const navigationTrigger = useCanvasStore(s => s.navigationTrigger);
+  const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
 
   const [hoveredNode, setHoveredNode] = useState<{ id: string; screenX: number; screenY: number } | null>(null);
 
@@ -140,11 +146,46 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
 
     const g = svg.append('g');
 
-    // Zoom
+    // Zoom - disable left-click drag, keep scroll/pinch zoom
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.15, 4])
+      .filter((event: any) => {
+        // Allow scroll/pinch zoom, but disable default left-click drag
+        if (event.type === 'mousedown' || event.type === 'touchstart') return false;
+        return true;
+      })
       .on('zoom', (event) => g.attr('transform', event.transform));
     svg.call(zoom);
+    zoomRef.current = zoom;
+
+    // Right-click drag for panning
+    let isPanning = false;
+    svg.on('mousedown', (event: MouseEvent) => {
+      if (event.button === 2) { // right-click
+        event.preventDefault();
+        isPanning = true;
+        dragStateRef.current = { startX: event.clientX, startY: event.clientY };
+        const startTransform = d3.zoomTransform(svgRef.current!);
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+          if (!isPanning || !dragStateRef.current) return;
+          const dx = moveEvent.clientX - dragStateRef.current.startX;
+          const dy = moveEvent.clientY - dragStateRef.current.startY;
+          const newTransform = startTransform.translate(dx, dy);
+          d3.select(svgRef.current as SVGSVGElement).call(zoom.transform, newTransform);
+        };
+
+        const onMouseUp = () => {
+          isPanning = false;
+          dragStateRef.current = null;
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      }
+    });
 
     // Links (paths)
     const link = g.append('g')
@@ -290,13 +331,53 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
-    nodeGroup.on('contextmenu', (evt, d) => {
+    nodeGroup.on('mousedown', (evt: MouseEvent, d: SimNode) => {
+      if (evt.button !== 2) return; // only right-click
       evt.preventDefault();
       evt.stopPropagation();
-      const nodeData = nodeMapRef.current.get(d.id);
-      if (!nodeData) return;
-      const r = NODE_RADIUS * 2;
-      onNodeMenuClickRef.current(nodeData, evt.clientX + 8, evt.clientY, evt.clientX - NODE_RADIUS, evt.clientY - NODE_RADIUS, r, r);
+
+      const startX = evt.clientX;
+      const startY = evt.clientY;
+      let isDragging = false;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const dragDist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+        if (dragDist > 5) {
+          isDragging = true;
+        }
+
+        if (isDragging) {
+          const startTransform = d3.zoomTransform(svgRef.current!);
+          const dx = moveEvent.clientX - startX;
+          const dy = moveEvent.clientY - startY;
+          const newTransform = startTransform.translate(dx, dy);
+          if (zoomRef.current) {
+            d3.select(svgRef.current as SVGSVGElement).call(zoomRef.current.transform, newTransform);
+          }
+        }
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+
+        // Only open menu if not dragging
+        if (!isDragging) {
+          const nodeData = nodeMapRef.current.get(d.id);
+          if (nodeData) {
+            const r = NODE_RADIUS * 2;
+            onNodeMenuClickRef.current(nodeData, evt.clientX + 8, evt.clientY, evt.clientX - NODE_RADIUS, evt.clientY - NODE_RADIUS, r, r);
+          }
+        }
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    });
+
+    nodeGroup.on('contextmenu', (evt: MouseEvent) => {
+      evt.preventDefault();
+      evt.stopPropagation();
     });
 
     nodeGroup.on('mouseover', (evt) => {
@@ -316,11 +397,13 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
+          setNavigationTrigger('double-click');
           onNodeDoubleClickRef.current(d.id);
         } else {
           const isCtrl = evt.ctrlKey || evt.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
+            setNavigationTrigger('single-click');
             if (isCtrl) onNodeCtrlClickRef.current(nodeData);
             else onNodeClickRef.current(nodeData);
           }, 220);
@@ -435,6 +518,50 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       .attr('fill', GRAY);
 
   }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds]);
+
+  // Effect 3: Handle navigation-triggered panning (for Force layout)
+  useEffect(() => {
+    if (!activeNodeId || !navigationTrigger || !svgRef.current || !zoomRef.current) return;
+
+    const simNode = simNodesRef.current.find(sn => sn.id === activeNodeId);
+    if (!simNode || simNode.x === undefined || simNode.y === undefined) return;
+
+    const svg = svgRef.current;
+    const k = d3.zoomTransform(svg).k;
+
+    if (navigationTrigger === 'double-click') {
+      // Center on node
+      const newX = svg.clientWidth / 2 - k * simNode.x;
+      const newY = svg.clientHeight / 2 - k * simNode.y;
+      const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
+      d3.select(svg).call(zoomRef.current.transform, newTransform);
+      setNavigationTrigger(null);
+    } else if (navigationTrigger === 'arrow' || navigationTrigger === 'button') {
+      // Center only if node is outside viewport
+      const transform = d3.zoomTransform(svg);
+      const screenX = transform.applyX(simNode.x);
+      const screenY = transform.applyY(simNode.y);
+      const nodeRadius = NODE_RADIUS * k;
+      const padding = 10;
+
+      const isVisible = (
+        screenX - nodeRadius >= padding &&
+        screenX + nodeRadius <= svg.clientWidth - padding &&
+        screenY - nodeRadius >= padding &&
+        screenY + nodeRadius <= svg.clientHeight - padding
+      );
+
+      if (!isVisible) {
+        const newX = svg.clientWidth / 2 - k * simNode.x;
+        const newY = svg.clientHeight / 2 - k * simNode.y;
+        const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
+        d3.select(svg).call(zoomRef.current.transform, newTransform);
+      }
+      setNavigationTrigger(null);
+    } else if (navigationTrigger === 'single-click') {
+      setNavigationTrigger(null);
+    }
+  }, [activeNodeId, navigationTrigger, setNavigationTrigger]);
 
   const hoveredNodeObj = hoveredNode ? nodes.find(n => n.id === hoveredNode.id) : null;
 

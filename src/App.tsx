@@ -8,7 +8,7 @@ import { makeGroqClient } from './lib/groq';
 import { AuthPage } from './components/Auth/AuthPage';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Canvas } from './components/Canvas/Canvas';
-import { ChatPane } from './components/Chat/ChatPane';
+import { ChatPaneWithControls } from './components/Chat/ChatPaneWithControls';
 import { ToastContainer } from './components/Toast';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import type { ToastMessage } from './components/Toast';
@@ -70,7 +70,8 @@ export default function App() {
   const grabTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragState = useRef<{ startX: number; startWidth: number; maxW: number } | null>(null);
 
-  const { setFromSupabase, subscribeToProjectNodes, getNodesByProject } = useDagStore();
+  const { setFromSupabase, subscribeToProjectNodes, getNodesByProject, undo } = useDagStore();
+  const storeNodes = useDagStore(s => s.nodes);
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
 
   useEffect(() => {
@@ -78,6 +79,18 @@ export default function App() {
       setChatPaneWidth(w => clampChatWidth(w, sidebarCollapsed));
     }
   }, [sidebarCollapsed, canvasWidth]);
+
+  // Ctrl+Z for undo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo]);
 
   const addToast = useCallback((text: string, type: ToastMessage['type'] = 'success') => {
     const id = uuidv4();
@@ -261,7 +274,7 @@ export default function App() {
 
   if (!user) return <AuthPage />;
 
-  const projectNodes = activeProject ? getNodesByProject(activeProject.id) : [];
+  const projectNodes = activeProject ? storeNodes.filter(n => n.projectId === activeProject.id) : [];
   const canvasHidden = canvasWidth === 0;
 
   return (
@@ -358,7 +371,7 @@ export default function App() {
         </div>
       )}
 
-      <ChatPane
+      <ChatPaneWithControls
         width={chatPaneWidth}
         canvasHidden={canvasHidden}
         groqClient={groqClient}
