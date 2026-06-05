@@ -181,7 +181,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         {/* Eye toggle — just icon, no box */}
         <Tooltip
           placement="bottom"
-          width={260}
+          width={200}
           content={
             contextDisplayMode
               ? 'Hide context highlighting on the canvas. The selected context remains saved for the next send.'
@@ -212,7 +212,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
             ['tree', <GitFork key="tf" size={14} strokeWidth={2} />, 'Tree view arranges nodes by parent and child relationships so the branch structure is easy to scan.'],
             ['force', <Share2 key="ff" size={14} strokeWidth={2} />, 'Force view lays nodes out as a physics map for exploring clusters and spatial relationships.'],
           ] as [string, React.ReactNode, string][]).map(([mode, icon, tooltip]) => (
-            <Tooltip key={mode as string} placement="bottom" width={245} content={tooltip}>
+            <Tooltip key={mode as string} placement="bottom" width={190} content={tooltip}>
               <button
                 onClick={() => setGraphMode(mode as 'tree' | 'force')}
                 style={{

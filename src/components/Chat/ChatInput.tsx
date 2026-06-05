@@ -81,7 +81,7 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <Tooltip
               placement="top"
-              width={240}
+              width={185}
               content="Grip controls how aggressively Graphi searches other nodes for related context before you send."
             >
               <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -90,7 +90,7 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
               </span>
             </Tooltip>
             {GRIP_LEVELS.map(level => (
-              <Tooltip key={level} placement="top" width={235} content={GRIP_TOOLTIPS[level]}>
+              <Tooltip key={level} placement="top" width={185} content={GRIP_TOOLTIPS[level]}>
                 <button
                   onClick={() => onGripChange(level)}
                   style={{
