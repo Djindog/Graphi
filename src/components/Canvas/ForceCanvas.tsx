@@ -11,6 +11,7 @@ interface Props {
   lineageNodeIds: string[];
   dangerNodeIds: string[];
   foldedCountMap: Map<string, number>;
+  hoveredNodeId?: string | null;
   onNodeClick: (node: Node) => void;
   onNodeCtrlClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
@@ -55,7 +56,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -457,26 +458,30 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       const isActive = activeContextNodeIds.includes(nodeId);
       const isDeactivated = deactivatedNodeIds.includes(nodeId);
       const inDanger = dangerNodeIds.includes(nodeId);
+      const isHovered = nodeId === hoveredNodeId;
 
       let fill = '#FFFFFF';
       let stroke = GRAY;
       let strokeWidth = 1.5;
       let opacity = 1;
       let glow = false;
+      let textColor = '#6B7280';
 
-      if (inDanger) {
-        fill = '#FEF2F2'; stroke = '#FCA5A5'; strokeWidth = 2; opacity = 1;
+      if (isHovered) {
+        fill = 'rgb(254, 243, 199)'; stroke = 'rgb(217, 119, 6)'; strokeWidth = 3; textColor = 'rgb(120, 53, 15)';
+      } else if (inDanger) {
+        fill = '#FEF2F2'; stroke = '#FCA5A5'; strokeWidth = 2; opacity = 1; textColor = '#EF4444';
       } else if (isSelected) {
-        fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 3.5; opacity = 1; glow = true;
+        fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 3.5; opacity = 1; glow = true; textColor = '#1D4ED8';
       } else if (isActive) {
-        fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 2; opacity = 1; glow = true;
+        fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 2; opacity = 1; glow = true; textColor = '#1D4ED8';
       } else if (isDeactivated) {
-        fill = '#F9FAFB'; stroke = BLUE_FADED; strokeWidth = 1.5; opacity = 0.45;
+        fill = '#F9FAFB'; stroke = BLUE_FADED; strokeWidth = 1.5; opacity = 0.45; textColor = '#93C5FD';
       } else if (inContextMode) {
-        stroke = GRAY; fill = '#FFFFFF'; opacity = 0.35;
+        stroke = GRAY; fill = '#FFFFFF'; opacity = 0.35; textColor = '#9CA3AF';
       }
 
-      return { fill, stroke, strokeWidth, opacity, glow };
+      return { fill, stroke, strokeWidth, opacity, glow, textColor };
     };
 
     const getEdgeStyle = (sourceId: string, targetId: string) => {
@@ -502,6 +507,8 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
         .attr('stroke-width', ns.strokeWidth)
         .attr('opacity', ns.opacity)
         .attr('filter', ns.glow ? 'url(#blue-glow-force)' : null);
+      d3.select(this).select('text.node-label')
+        .attr('fill', ns.textColor);
     });
 
     // Update link styles
@@ -517,7 +524,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
     svg.select('#arrowhead polygon')
       .attr('fill', GRAY);
 
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds]);
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId]);
 
   // Effect 3: Handle navigation-triggered panning (for Force layout)
   useEffect(() => {

@@ -14,6 +14,8 @@ export interface Node {
   parentId: string | null;
   order: number;
   version: number;
+  summary: string | null;
+  embedding: number[] | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphi — Polish Lab</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  html, body, #root { height: 100%; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; background: #F5F6F8; color: #111827; overflow: hidden; }
+  * { box-sizing: border-box; }
+  @keyframes gspin { to { transform: rotate(360deg); } }
+  @keyframes gtoast { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes gfade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes gnodein { from { transform: translateY(10px) scale(0.97); } to { transform: translateY(0) scale(1); } }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#F0F2F5"/>
+    <line x1="50" y1="34" x2="32" y2="58" stroke="#2563EB" stroke-width="2"/>
+    <line x1="50" y1="34" x2="68" y2="58" stroke="#D1D5DB" stroke-width="2"/>
+    <rect x="36" y="24" width="28" height="14" rx="4" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <rect x="20" y="58" width="24" height="13" rx="4" fill="#fff" stroke="#2563EB" stroke-width="2"/>
+    <rect x="56" y="58" width="24" height="13" rx="4" fill="#fff" stroke="#D1D5DB" stroke-width="2"/>
+  </svg>
+</template>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+<!-- shared kit foundations -->
+<script src="ui_kits/app/theme.js"></script>
+<script src="ui_kits/app/data.js"></script>
+<script type="text/babel" src="ui_kits/app/NodeMenu.jsx"></script>
+<script type="text/babel" src="ui_kits/app/Modals.jsx"></script>
+
+<!-- polish lab -->
+<script type="text/babel" src="polish/tweaks-panel.jsx"></script>
+<script type="text/babel" src="polish/polish-core.jsx"></script>
+<script type="text/babel" src="polish/PolishSidebar.jsx"></script>
+<script type="text/babel" src="polish/PolishCanvas.jsx"></script>
+<script type="text/babel" src="polish/PolishChat.jsx"></script>
+<script type="text/babel" src="polish/PolishApp.jsx"></script>
+</body>
+</html>

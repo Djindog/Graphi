@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { GitFork } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import logoSvg from '../../assets/logo.svg';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -64,12 +64,7 @@ export function AuthPage() {
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 11, background: '#2563EB',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <GitFork size={20} strokeWidth={2.2} color="#fff" />
-            </div>
+            <img src={logoSvg} alt="Graphi" style={{ width: 56, height: 56, flexShrink: 0 }} />
             <span style={{ fontSize: 21, fontWeight: 600, letterSpacing: '-0.4px', color: '#111827' }}>Graphi</span>
           </div>
           <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>

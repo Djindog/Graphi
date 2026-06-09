@@ -3,6 +3,7 @@ import { GitFork, Pencil, Scissors, Trash2, Minimize2, Maximize2, ChevronRight }
 import { useDagStore } from '../../stores/dagStore';
 import { useChatStore } from '../../stores/chatStore';
 import { NewProjectModal } from '../NewProjectModal';
+import { ConfirmDialog } from '../ConfirmDialog';
 import type { Node, Project } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +30,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
   const currentNodeId = useChatStore(s => s.currentNodeId);
   const [transplantOpen, setTransplantOpen] = useState(false);
   const [newProjectModal, setNewProjectModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{ action: 'prune' | null }>({ action: null });
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,11 +68,15 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
 
   const prune = async () => {
     if (isRoot) return;
-    if (!confirm(`Delete "${node.title || 'this node'}" and all descendants?`)) return;
+    setConfirmDialog({ action: 'prune' });
+  };
+
+  const executePrune = async () => {
     const descendants = getDescendants(node.id);
     for (const d of descendants) await deleteNode(d.id);
     if (currentNodeId === node.id && node.parentId) await setCurrentNode(node.parentId);
     await deleteNode(node.id);
+    setConfirmDialog({ action: null });
     onClose();
   };
 
@@ -184,6 +190,18 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
       <NewProjectModal
         onConfirm={transplantToNew}
         onClose={() => setNewProjectModal(false)}
+      />
+    )}
+
+    {confirmDialog.action === 'prune' && (
+      <ConfirmDialog
+        title={`Delete "${node.title || 'this node'}"`}
+        message="This will delete the node and all its descendants. This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        danger
+        onConfirm={executePrune}
+        onCancel={() => setConfirmDialog({ action: null })}
       />
     )}
     </>

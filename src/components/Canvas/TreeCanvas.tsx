@@ -4,6 +4,16 @@ import { useCanvasStore } from '../../stores/canvasStore';
 import { useDagStore } from '../../stores/dagStore';
 import type { Node } from '../../types';
 
+// Minimize2 icon from lucide-react (actual SVG paths)
+function createMinimize2Icon(offsetX: number, offsetY: number): string[] {
+  return [
+    `m${14 + offsetX} ${10 + offsetY} 7-7`,
+    `M${20 + offsetX} ${10 + offsetY}h-6V${4 + offsetY}`,
+    `m${3 + offsetX} ${21 + offsetY} 7-7`,
+    `M${4 + offsetX} ${14 + offsetY}h6v6`,
+  ];
+}
+
 interface Props {
   nodes: Node[];
   activeNodeId: string | null;
@@ -12,6 +22,7 @@ interface Props {
   lineageNodeIds: string[];
   dangerNodeIds: string[];
   foldedCountMap: Map<string, number>;
+  hoveredNodeId?: string | null;
   onNodeClick: (node: Node) => void;
   onNodeCtrlClick: (node: Node) => void;
   onNodeDoubleClick: (nodeId: string) => void;
@@ -63,7 +74,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const treeDataRef = useRef<{ nodes: Map<string, { x: number; y: number }>; width: number; height: number } | null>(null);
@@ -82,6 +93,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const deactivatedNodeIdsRef = useRef(deactivatedNodeIds);
   const lineageNodeIdsRef = useRef(lineageNodeIds);
   const dangerNodeIdsRef = useRef(dangerNodeIds);
+  const hoveredNodeIdRef = useRef(hoveredNodeId);
 
   // Keep refs in sync every render
   activeNodeIdRef.current = activeNodeId;
@@ -89,6 +101,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   deactivatedNodeIdsRef.current = deactivatedNodeIds;
   lineageNodeIdsRef.current = lineageNodeIds;
   dangerNodeIdsRef.current = dangerNodeIds;
+  hoveredNodeIdRef.current = hoveredNodeId;
 
   // Called by both effects: derives node visual style from current refs
   const getNodeStyle = useCallback((nodeId: string) => {
@@ -678,7 +691,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         event.stopPropagation();
       });
 
-      // Fold badge
+      // Fold badge (always visible for folded nodes)
       const foldCount = foldedCountMap.get(nodeData.id);
       if (foldCount !== undefined) {
         const label = String(foldCount);
@@ -706,49 +719,82 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
           .text(label);
 
-        // Tooltip below the badge
-        const tooltipW = 52;
-        const tooltipH = 22;
-        const tooltipX = badgeX - tooltipW / 2;
-        const tooltipY = badgeY + badgeH / 2 + 6;
+        badgeGroup.on('click', (event: MouseEvent) => {
+          event.stopPropagation();
+          onNodeBadgeClick(nodeData.id);
+        });
+      }
 
-        const tooltipG = g.append('g')
-          .attr('class', 'fold-tooltip')
+      // Hover fold button (appears on hover for nodes with children to allow folding)
+      const hasChildren = nodes.some(n => n.parentId === nodeData.id);
+      if (hasChildren) {
+        const badgeSize = 26;
+        const badgeX = initW;
+        const badgeY = NODE_H - 2;
+
+        const hoverFoldGroup = g.append('g')
+          .attr('class', 'hover-fold-group')
           .attr('opacity', 0)
-          .attr('pointer-events', 'none');
+          .attr('cursor', 'pointer')
+          .attr('pointer-events', 'auto');
 
-        // Triangle pointing up toward badge
-        tooltipG.append('polygon')
-          .attr('points', `${badgeX - 4},${tooltipY} ${badgeX + 4},${tooltipY} ${badgeX},${tooltipY - 5}`)
-          .attr('fill', '#111827');
-
-        tooltipG.append('rect')
-          .attr('x', tooltipX).attr('y', tooltipY)
-          .attr('width', tooltipW).attr('height', tooltipH)
-          .attr('rx', 6)
-          .attr('fill', '#111827');
-
-        tooltipG.append('text')
-          .attr('x', badgeX).attr('y', tooltipY + tooltipH / 2)
-          .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
-          .attr('font-size', '11px').attr('font-weight', '500')
+        hoverFoldGroup.append('rect')
+          .attr('class', 'hover-fold-bg')
+          .attr('x', badgeX - badgeSize / 2)
+          .attr('y', badgeY - badgeSize / 2)
+          .attr('width', badgeSize)
+          .attr('height', badgeSize)
+          .attr('rx', badgeSize / 2)
           .attr('fill', '#fff')
-          .attr('font-family', '-apple-system, BlinkMacSystemFont, Inter, sans-serif')
-          .text('Unfold');
+          .attr('stroke', '#E5E7EB')
+          .attr('stroke-width', 1);
 
-        badgeGroup
-          .on('click', (event: MouseEvent) => {
-            event.stopPropagation();
-            onNodeBadgeClick(nodeData.id);
-          })
-          .on('mouseenter', () => {
-            tooltipG.attr('opacity', 1);
-            badgeGroup.select('rect.fold-badge-bg').attr('fill', '#1D4ED8');
-          })
-          .on('mouseleave', () => {
-            tooltipG.attr('opacity', 0);
-            badgeGroup.select('rect.fold-badge-bg').attr('fill', '#2563EB');
+        // Minimize2 icon (actual lucide-react paths, scaled down and centered)
+        const iconGroup = hoverFoldGroup.append('g')
+          .attr('transform', `translate(${badgeX},${badgeY}) scale(0.55)`);
+
+        const iconPaths = createMinimize2Icon(-12, -12);
+        iconPaths.forEach(pathD => {
+          iconGroup.append('path')
+            .attr('d', pathD)
+            .attr('stroke', '#6B7280')
+            .attr('stroke-width', 1.5)
+            .attr('fill', 'none')
+            .attr('stroke-linecap', 'round')
+            .attr('stroke-linejoin', 'round')
+            .attr('pointer-events', 'none');
+        });
+
+        // Hover state
+        hoverFoldGroup.on('mouseenter', () => {
+          hoverFoldGroup.select('rect.hover-fold-bg')
+            .attr('fill', '#F9FAFB')
+            .attr('stroke', '#D1D5DB');
+          iconGroup.selectAll('path')
+            .attr('stroke', '#374151');
+        })
+        .on('mouseleave', () => {
+          hoverFoldGroup.select('rect.hover-fold-bg')
+            .attr('fill', '#fff')
+            .attr('stroke', '#E5E7EB');
+          iconGroup.selectAll('path')
+            .attr('stroke', '#6B7280');
+        })
+        .on('click', (event: MouseEvent) => {
+          event.stopPropagation();
+          onNodeBadgeClick(nodeData.id);
+        });
+
+        // Show on node hover (only if not already folded)
+        if (foldCount === undefined) {
+          g.on('mouseenter.fold', () => {
+            hoverFoldGroup.transition().duration(140).attr('opacity', 1);
           });
+
+          g.on('mouseleave.fold', () => {
+            hoverFoldGroup.transition().duration(140).attr('opacity', 0);
+          });
+        }
       }
 
       let clickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -783,25 +829,28 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   // on existing elements — no layout, no DOM teardown.
   useEffect(() => {
     const svg = d3.select(svgRef.current);
+    const _hoveredNodeId = hoveredNodeIdRef.current;
 
     // Restyle node groups
     svg.selectAll<SVGGElement, unknown>('g.tree-node').each(function() {
       const nodeId = d3.select(this).attr('data-id');
       if (!nodeId) return;
       const ns = getNodeStyle(nodeId);
+      const isHovered = nodeId === _hoveredNodeId;
 
       d3.select(this).attr('opacity', ns.opacity);
 
-      d3.select(this).select<SVGRectElement>('rect.node-bg')
-        .attr('fill', ns.fill)
-        .attr('stroke', ns.stroke)
-        .attr('stroke-width', ns.strokeWidth);
+      const nodeBg = d3.select(this).select<SVGRectElement>('rect.node-bg');
+      nodeBg
+        .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill)
+        .attr('stroke', isHovered ? 'rgb(217, 119, 6)' : ns.stroke)
+        .attr('stroke-width', isHovered ? 3 : ns.strokeWidth);
 
       d3.select(this).select<SVGRectElement>('rect.dot-menu-bg')
-        .attr('fill', ns.fill);
+        .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill);
 
       d3.select(this).select<SVGTextElement>('text.node-label')
-        .attr('fill', ns.textColor);
+        .attr('fill', isHovered ? 'rgb(120, 53, 15)' : ns.textColor);
 
       const glowBg = d3.select(this).select<SVGRectElement>('rect.glow-bg');
       if (!glowBg.empty()) {
@@ -824,7 +873,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('stroke-width', es.strokeWidth)
         .attr('opacity', es.opacity);
     });
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, getNodeStyle, getEdgeStyle]);
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, getNodeStyle, getEdgeStyle]);
 
   // Effect 3: Handle navigation-triggered centering
   useEffect(() => {

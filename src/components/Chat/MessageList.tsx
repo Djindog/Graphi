@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { MessageSquarePlus, ArrowDown, Plus, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -8,6 +8,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { Tooltip } from '../Tooltip';
+import { BranchReminder } from './BranchReminder';
 import type { Message } from '../../types';
 
 function UserMessage({ msg, isLastUser, onEdit }: {
@@ -116,9 +117,29 @@ interface Props {
   contextPadding?: number;
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   onEditMessage?: (id: string, content: string) => void;
+  guidancePillVisible?: boolean;
+  guidancePillType?: 'length' | 'drift' | 'noGuidance';
+  suggestedNodeTitle?: string;
+  suggestedNodeId?: string;
+  onMoveToNode?: (nodeId: string) => void;
+  onDismissGuidance?: () => void;
+  onHoverSuggestedNode?: (nodeId: string | null) => void;
 }
 
-export function MessageList({ messages, isGenerating, contextPadding = 0, scrollContainerRef, onEditMessage }: Props) {
+export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
+  messages,
+  isGenerating,
+  contextPadding = 0,
+  scrollContainerRef,
+  onEditMessage,
+  guidancePillVisible = false,
+  guidancePillType = 'length',
+  suggestedNodeTitle,
+  suggestedNodeId,
+  onMoveToNode,
+  onDismissGuidance,
+  onHoverSuggestedNode,
+}, ref) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = scrollContainerRef ?? internalRef;
@@ -135,7 +156,7 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
     if (!userScrolledUp.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, guidancePillVisible]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -151,6 +172,8 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
     setShowScrollBtn(false);
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useImperativeHandle(ref, () => ({ scrollToBottom }), []);
 
   const handleBranch = useCallback(async () => {
     if (!currentNodeId) return;
@@ -241,6 +264,18 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
           </div>
         ));
         })()}
+
+        {guidancePillVisible && (
+          <BranchReminder
+            type={guidancePillType}
+            isVisible={true}
+            suggestedNodeTitle={suggestedNodeTitle}
+            suggestedNodeId={suggestedNodeId}
+            onMoveToNode={onMoveToNode}
+            onDismiss={onDismissGuidance}
+            onHoverNode={onHoverSuggestedNode}
+          />
+        )}
 
         {isGenerating && messages[messages.length - 1]?.role === 'user' && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
@@ -333,4 +368,6 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
       </div>
     </div>
   );
-}
+});
+
+MessageList.displayName = 'MessageList';

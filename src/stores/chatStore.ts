@@ -18,6 +18,12 @@ interface ChatState {
   isGenerating: boolean;
   contextDisplayMode: boolean;
   lastContextSnapshot: ContextSnapshot | null;
+  branchReminderDismissed: boolean;
+  driftDetected: boolean;
+  suggestedNodeId: string | null;
+  guidanceEnabled: boolean;
+  devShowGuidancePill: boolean;
+  hoveredSuggestedNodeId: string | null;
 
   setCurrentNode: (nodeId: string | null) => Promise<void>;
   addMessage: (msg: Message) => void;
@@ -33,6 +39,12 @@ interface ChatState {
   setContextDisplay: (on: boolean) => void;
   clearAllContext: () => void;
   reinitContext: () => void;
+  setBranchReminderDismissed: (dismissed: boolean) => void;
+  setDriftDetected: (detected: boolean) => void;
+  setSuggestedNodeId: (id: string | null) => void;
+  setGuidanceEnabled: (enabled: boolean) => void;
+  setDevShowGuidancePill: (show: boolean) => void;
+  setHoveredSuggestedNodeId: (id: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -46,6 +58,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isGenerating: false,
   contextDisplayMode: false,
   lastContextSnapshot: null,
+  branchReminderDismissed: false,
+  driftDetected: false,
+  suggestedNodeId: null,
+  guidanceEnabled: true,
+  devShowGuidancePill: false,
+  hoveredSuggestedNodeId: null,
 
   setCurrentNode: async (nodeId) => {
     if (nodeId === null) {
@@ -59,6 +77,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentInput: '',
         contextDisplayMode: false,
         lastContextSnapshot: null,
+        driftDetected: false,
+        suggestedNodeId: null,
       });
       return;
     }
@@ -72,6 +92,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentInput: '',
       contextDisplayMode: false,
       lastContextSnapshot: null,
+      driftDetected: false,
+      suggestedNodeId: null,
     });
     const { data } = await supabase
       .from('messages')
@@ -174,4 +196,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       deactivatedNodeIds: lastContextSnapshot.deactivatedIds,
     });
   },
+
+  setBranchReminderDismissed: (dismissed) => set({ branchReminderDismissed: dismissed }),
+
+  setDriftDetected: (detected) => set({ driftDetected: detected }),
+
+  setSuggestedNodeId: (id) => set({ suggestedNodeId: id }),
+
+  setGuidanceEnabled: (enabled) => set({ guidanceEnabled: enabled }),
+
+  setDevShowGuidancePill: (show) => set({ devShowGuidancePill: show }),
+
+  setHoveredSuggestedNodeId: (id) => set({ hoveredSuggestedNodeId: id }),
 }));

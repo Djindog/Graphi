@@ -2,17 +2,21 @@ import { useState, useEffect, useRef } from 'react';
 
 interface Props {
   onSave: (key: string) => Promise<void>;
-  onClose?: () => void; // optional — omit when it's the blocking onboarding screen
+  onClose?: () => void;
   existingKey?: string;
 }
 
 export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
+  const [tab, setTab] = useState<'api' | 'dev'>('api');
   const [key, setKey] = useState(existingKey ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(() => {
+    return localStorage.getItem('graphi_dev_mode') === 'true';
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => { inputRef.current?.focus(); }, [tab]);
 
   const submit = async () => {
     const trimmed = key.trim();
@@ -31,7 +35,11 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
     }
   };
 
-  const isUpdate = !!existingKey;
+  const toggleDevMode = () => {
+    const newValue = !devMode;
+    setDevMode(newValue);
+    localStorage.setItem('graphi_dev_mode', newValue ? 'true' : 'false');
+  };
 
   return (
     <div
@@ -55,13 +63,8 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
           <div>
             <p style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0, letterSpacing: '-0.3px' }}>
-              {isUpdate ? 'Update Groq API key' : 'Add your Groq API key'}
+              Settings
             </p>
-            {!isUpdate && (
-              <p style={{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' }}>
-                Required to generate responses. Your key is stored in your account.
-              </p>
-            )}
           </div>
           {onClose && (
             <button
@@ -73,64 +76,178 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
           )}
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-            API key
-          </label>
-          <input
-            ref={inputRef}
-            type="password"
-            value={key}
-            onChange={e => { setKey(e.target.value); setError(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape' && onClose) onClose(); }}
-            placeholder="gsk_..."
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 0, marginTop: 20, marginBottom: 20, borderBottom: '1px solid #E5E7EB' }}>
+          <button
+            onClick={() => setTab('api')}
             style={{
-              width: '100%', boxSizing: 'border-box',
-              background: '#F9FAFB', border: `1.5px solid ${error ? '#FCA5A5' : '#E5E7EB'}`,
-              borderRadius: 10, padding: '10px 12px', fontSize: 14,
-              color: '#111827', outline: 'none', fontFamily: 'monospace',
-              transition: 'border-color 0.15s',
+              padding: '10px 16px',
+              fontSize: 14,
+              fontWeight: tab === 'api' ? 600 : 400,
+              color: tab === 'api' ? '#111827' : '#6B7280',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              borderBottom: tab === 'api' ? '2px solid #2563EB' : 'none',
+              marginBottom: '-1px',
+              transition: 'color 0.15s',
             }}
-            onFocus={e => { if (!error) (e.target as HTMLInputElement).style.borderColor = '#2563EB'; }}
-            onBlur={e => { if (!error) (e.target as HTMLInputElement).style.borderColor = '#E5E7EB'; }}
-          />
-          {error && (
-            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 6, marginBottom: 0 }}>{error}</p>
-          )}
-          <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8, marginBottom: 0 }}>
-            Get a free key at{' '}
-            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer"
-              style={{ color: '#2563EB', textDecoration: 'none' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none'; }}
-            >console.groq.com/keys</a>
-          </p>
+          >
+            API Key
+          </button>
+          <button
+            onClick={() => setTab('dev')}
+            style={{
+              padding: '10px 16px',
+              fontSize: 14,
+              fontWeight: tab === 'dev' ? 600 : 400,
+              color: tab === 'dev' ? '#111827' : '#6B7280',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              borderBottom: tab === 'dev' ? '2px solid #2563EB' : 'none',
+              marginBottom: '-1px',
+              transition: 'color 0.15s',
+            }}
+          >
+            Developer
+          </button>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 22 }}>
-          {onClose && (
-            <button
-              onClick={onClose}
-              style={{
-                padding: '9px 18px', fontSize: 14, borderRadius: 10, border: '1px solid #E5E7EB',
-                background: '#fff', color: '#374151', cursor: 'pointer', fontWeight: 500,
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
-            >Cancel</button>
-          )}
-          <button
-            onClick={submit}
-            disabled={saving || !key.trim()}
-            style={{
-              padding: '9px 20px', fontSize: 14, borderRadius: 10, border: 'none',
-              background: '#111827', color: '#fff',
-              cursor: saving || !key.trim() ? 'default' : 'pointer',
-              fontWeight: 500, opacity: saving || !key.trim() ? 0.5 : 1,
-              transition: 'opacity 0.1s',
-            }}
-          >{saving ? '…' : isUpdate ? 'Save' : 'Save & continue'}</button>
-        </div>
+        {/* API Key Tab */}
+        {tab === 'api' && (
+          <div>
+            <div style={{ marginTop: 0 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                Groq API key
+              </label>
+              <input
+                ref={inputRef}
+                type="password"
+                value={key}
+                onChange={e => { setKey(e.target.value); setError(null); }}
+                onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape' && onClose) onClose(); }}
+                placeholder="gsk_..."
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  background: '#F9FAFB', border: `1.5px solid ${error ? '#FCA5A5' : '#E5E7EB'}`,
+                  borderRadius: 10, padding: '10px 12px', fontSize: 14,
+                  color: '#111827', outline: 'none', fontFamily: 'monospace',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => { if (!error) (e.target as HTMLInputElement).style.borderColor = '#2563EB'; }}
+                onBlur={e => { if (!error) (e.target as HTMLInputElement).style.borderColor = '#E5E7EB'; }}
+              />
+              {error && (
+                <p style={{ fontSize: 12, color: '#EF4444', marginTop: 6, marginBottom: 0 }}>{error}</p>
+              )}
+              <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8, marginBottom: 0 }}>
+                Get a free key at{' '}
+                <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer"
+                  style={{ color: '#2563EB', textDecoration: 'none' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none'; }}
+                >console.groq.com/keys</a>
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 22 }}>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  style={{
+                    padding: '9px 18px', fontSize: 14, borderRadius: 10, border: '1px solid #E5E7EB',
+                    background: '#fff', color: '#374151', cursor: 'pointer', fontWeight: 500,
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
+                >Close</button>
+              )}
+              <button
+                onClick={submit}
+                disabled={saving || !key.trim()}
+                style={{
+                  padding: '9px 20px', fontSize: 14, borderRadius: 10, border: 'none',
+                  background: '#111827', color: '#fff',
+                  cursor: saving || !key.trim() ? 'default' : 'pointer',
+                  fontWeight: 500, opacity: saving || !key.trim() ? 0.5 : 1,
+                  transition: 'opacity 0.1s',
+                }}
+              >{saving ? '…' : 'Save'}</button>
+            </div>
+          </div>
+        )}
+
+        {/* Developer Tab */}
+        {tab === 'dev' && (
+          <div>
+            <div style={{ marginTop: 0 }}>
+              <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 16px' }}>
+                Enable developer mode to access testing tools and features.
+              </p>
+
+              {/* Developer Mode Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 12px', background: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', margin: 0 }}>
+                  Developer Mode
+                </label>
+                <button
+                  onClick={toggleDevMode}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12,
+                    background: devMode ? '#2563EB' : '#E5E7EB',
+                    border: 'none',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    padding: 2,
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={e => {
+                    if (devMode) {
+                      (e.currentTarget as HTMLButtonElement).style.background = '#1D4ED8';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (devMode) {
+                      (e.currentTarget as HTMLButtonElement).style.background = '#2563EB';
+                    }
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 20, height: 20, borderRadius: 10,
+                      background: '#fff',
+                      position: 'absolute',
+                      transition: 'left 0.2s',
+                      left: devMode ? 22 : 2,
+                      top: 2,
+                    }}
+                  />
+                </button>
+              </div>
+
+              <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
+                {devMode
+                  ? '✓ Developer mode is enabled. Test button and dev features are now visible.'
+                  : 'Turn on to see dev-only features like the reminder test button.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 22 }}>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  style={{
+                    padding: '9px 18px', fontSize: 14, borderRadius: 10, border: '1px solid #E5E7EB',
+                    background: '#fff', color: '#374151', cursor: 'pointer', fontWeight: 500,
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
+                >Close</button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
