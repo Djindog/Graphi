@@ -18,6 +18,8 @@ interface ChatState {
   isGenerating: boolean;
   contextDisplayMode: boolean;
   lastContextSnapshot: ContextSnapshot | null;
+  branchReminderDismissed: boolean;
+  branchReminderVisible: boolean;
 
   setCurrentNode: (nodeId: string | null) => Promise<void>;
   addMessage: (msg: Message) => void;
@@ -33,6 +35,8 @@ interface ChatState {
   setContextDisplay: (on: boolean) => void;
   clearAllContext: () => void;
   reinitContext: () => void;
+  setBranchReminderDismissed: (dismissed: boolean) => void;
+  setBranchReminderVisible: (visible: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -46,6 +50,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isGenerating: false,
   contextDisplayMode: false,
   lastContextSnapshot: null,
+  branchReminderDismissed: false,
+  branchReminderVisible: false,
 
   setCurrentNode: async (nodeId) => {
     if (nodeId === null) {
@@ -174,4 +180,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       deactivatedNodeIds: lastContextSnapshot.deactivatedIds,
     });
   },
+
+  setBranchReminderDismissed: (dismissed) => set({ branchReminderDismissed: dismissed }),
+
+  setBranchReminderVisible: (visible) => set({ branchReminderVisible: visible }),
 }));

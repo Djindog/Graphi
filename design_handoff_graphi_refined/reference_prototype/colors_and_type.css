@@ -1,0 +1,197 @@
+/* ============================================================
+   Graphi — Colors & Type
+   Foundational + semantic design tokens, extracted from the
+   product source (src/). Import this in any Graphi artifact:
+     <link rel="stylesheet" href="colors_and_type.css">
+   ============================================================ */
+
+/* Inter is the closest Google-Fonts match to the product's
+   system-first stack (-apple-system / Segoe UI). System fonts
+   render first; Inter is the cross-platform fallback. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---------- Base palette ---------------------------------- */
+
+  /* Surfaces & backgrounds */
+  --app-bg:        #F5F6F8;   /* app shell background          */
+  --canvas-bg:     #F0F2F5;   /* graph / mind-map canvas        */
+  --surface:       #FFFFFF;   /* panels, cards, menus, modals   */
+  --surface-soft:  #F9FAFB;   /* inset inputs, hover rows       */
+  --surface-faint: #FAFAFA;   /* context summary tray           */
+
+  /* Ink (neutral text & strokes), warm-gray Tailwind ramp */
+  --ink-900: #111827;  /* primary text, dark buttons           */
+  --ink-700: #374151;  /* secondary text, button hover         */
+  --ink-500: #6B7280;  /* tertiary text, muted icons           */
+  --ink-400: #9CA3AF;  /* placeholders, inactive, captions     */
+  --ink-300: #D1D5DB;  /* faint text, gray node strokes        */
+
+  /* Borders & dividers */
+  --border:       #E5E7EB;  /* default 1px border               */
+  --border-faint: #F3F4F6;  /* hairline dividers inside panels  */
+
+  /* Accent — blue (selection, active context, links) */
+  --blue-700: #1D4ED8;  /* active node label, selected text     */
+  --blue-600: #2563EB;  /* primary accent: focus, links, edges  */
+  --blue-300: #93C5FD;  /* faded / deactivated context          */
+  --blue-100: #DBEAFE;  /* focus ring                           */
+  --blue-50:  #EFF6FF;  /* active node fill, selected row bg     */
+  --indigo-50:#EEF2FF;  /* "new node" preview card fill          */
+
+  /* Danger — destructive node ops (cut / prune) */
+  --danger-600: #EF4444;  /* destructive text & icons           */
+  --danger-300: #FCA5A5;  /* danger border / pre-delete stroke  */
+  --danger-50:  #FEF2F2;  /* danger hover fill                  */
+
+  /* Accent — amber (pinned projects) */
+  --amber-500: #F59E0B;
+
+  /* ---------- Type families --------------------------------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+
+  /* ---------- Type scale (px) ------------------------------- */
+  --text-11: 11px;  /* uppercase micro-labels                  */
+  --text-12: 12px;  /* captions, grip labels, badges           */
+  --text-13: 13px;  /* menu items, dense body, secondary       */
+  --text-14: 14px;  /* default UI body, list rows              */
+  --text-15: 15px;  /* chat messages, node header              */
+  --text-16: 16px;  /* sidebar wordmark, section header        */
+  --text-18: 18px;  /* modal title                             */
+  --text-24: 24px;  /* auth headline                           */
+
+  /* ---------- Weights --------------------------------------- */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* ---------- Radii ----------------------------------------- */
+  --radius-sm:   6px;   /* chips, small buttons                */
+  --radius-md:   8px;   /* sidebar rows, dashed new-project    */
+  --radius-lg:   10px;  /* inputs, nodes, toolbar, menus       */
+  --radius-xl:   12px;  /* textareas, tool overlay, icon btns  */
+  --radius-2xl:  14px;  /* message bubbles, preview card       */
+  --radius-3xl:  16px;  /* modals                              */
+  --radius-pill: 999px; /* send button, fold badge, toggles    */
+
+  /* ---------- Spacing (4px base grid) ----------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+
+  /* ---------- Elevation / shadows --------------------------- */
+  --shadow-toolbar: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-menu:    0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+  --shadow-toast:   0 4px 16px rgba(0,0,0,0.12);
+  --shadow-modal:   0 24px 60px rgba(0,0,0,0.18);
+  --shadow-card:    0 1px 2px rgba(0,0,0,0.04);
+
+  /* ---------- Motion ---------------------------------------- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:  120ms;  /* hover/press color & border shifts    */
+  --dur-node:  140ms;  /* node hover-expand on the canvas      */
+  --dur-toast: 300ms;  /* toast in/out                         */
+
+  /* ---------- Layout constants ------------------------------ */
+  --sidebar-w:        220px;
+  --sidebar-collapsed:48px;
+  --node-w:           160px;
+  --node-h:           56px;
+
+  /* ============================================================
+     Semantic roles
+     ============================================================ */
+  --fg-1: var(--ink-900);  /* primary foreground               */
+  --fg-2: var(--ink-700);  /* secondary foreground             */
+  --fg-3: var(--ink-500);  /* tertiary foreground              */
+  --fg-muted: var(--ink-400);
+
+  --accent:        var(--blue-600);
+  --accent-strong: var(--blue-700);
+  --accent-soft:   var(--blue-50);
+  --accent-faded:  var(--blue-300);
+
+  --action-fg:        #FFFFFF;       /* text on dark buttons    */
+  --action-bg:        var(--ink-900);
+  --action-bg-hover:  var(--ink-700);
+  --action-bg-disabled: var(--border);
+
+  --link: var(--blue-600);
+  --focus-ring: var(--blue-100);
+}
+
+/* ============================================================
+   Semantic element styles — opt in with class="graphi"
+   on a wrapper, or copy the rules you need.
+   ============================================================ */
+.graphi {
+  font-family: var(--font-sans);
+  color: var(--fg-1);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.graphi h1, .graphi .h1 {
+  font-size: var(--text-24);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.5px;
+  color: var(--fg-1);
+  margin: 0;
+}
+.graphi h2, .graphi .h2 {
+  font-size: var(--text-18);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.3px;
+  color: var(--fg-1);
+  margin: 0;
+}
+.graphi h3, .graphi .h3 {
+  font-size: var(--text-16);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.3px;
+  color: var(--fg-1);
+  margin: 0;
+}
+.graphi p, .graphi .body {
+  font-size: var(--text-14);
+  font-weight: var(--fw-regular);
+  line-height: 1.5;
+  color: var(--fg-2);
+  margin: 0;
+}
+.graphi .body-lg {
+  font-size: var(--text-15);
+  line-height: 1.65;
+  color: var(--fg-1);
+}
+.graphi .caption {
+  font-size: var(--text-13);
+  color: var(--fg-3);
+}
+.graphi .label {
+  font-size: var(--text-11);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+.graphi code, .graphi .code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(0,0,0,0.06);
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.35em;
+}
+.graphi a, .graphi .link {
+  color: var(--link);
+  text-decoration: none;
+}
+.graphi a:hover, .graphi .link:hover {
+  text-decoration: underline;
+}

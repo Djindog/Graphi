@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ContextSummary } from './ContextSummary';
+import { BranchReminder } from './BranchReminder';
 import type { Message } from '../../types';
 import type Groq from 'groq-sdk';
 
@@ -44,6 +45,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     isGenerating, setCurrentInput, setReferenced, setRecommended,
     initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
     contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
+    branchReminderDismissed, branchReminderVisible,
+    setBranchReminderDismissed, setBranchReminderVisible,
   } = useChatStore();
 
   const { nodes, getAllAncestors, getNodesByProject, renameNode } = useDagStore();
@@ -70,6 +73,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     const ancestors = getAllAncestors(currentNodeId);
     initContext(ancestors.map(a => a.id));
   }, [currentNodeId, getAllAncestors, initContext]);
+
+  // Remedy 2: Show branch reminder when threshold is hit
+  useEffect(() => {
+    const messageCount = messages.length;
+    const shouldShowReminder = messageCount >= 15 && !branchReminderDismissed;
+
+    if (shouldShowReminder && messageCount === 15) {
+      setBranchReminderVisible(true);
+    }
+  }, [messages.length, branchReminderDismissed, setBranchReminderVisible]);
 
   const runStage0 = useCallback(async (message: string) => {
     if (!currentNodeId || !message.trim()) { clearContext(); return; }
@@ -282,13 +295,80 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             {isRoot ? 'Root thread' : 'Branch thread'}
           </p>
         </div>
+        {/* Remedy 1: Message count with tooltip */}
+        <div style={{ position: 'relative' }}>
+          <span
+            style={{
+              fontSize: '0.875rem',
+              color: messages.length >= 15 ? 'rgb(78, 70, 0)' : 'rgb(107, 114, 128)',
+              backgroundColor: messages.length >= 15 ? 'rgb(255, 251, 235)' : 'transparent',
+              padding: messages.length >= 15 ? '0.25rem 0.75rem' : '0',
+              borderRadius: '0.375rem',
+              fontWeight: messages.length >= 15 ? 500 : 400,
+              cursor: messages.length >= 15 ? 'pointer' : 'default',
+              transition: 'background-color 0.3s ease, color 0.3s ease',
+              position: 'relative',
+              whiteSpace: 'nowrap',
+              display: 'inline-block',
+            }}
+            onMouseEnter={(e) => {
+              if (messages.length >= 15) {
+                e.currentTarget.style.backgroundColor = 'rgb(254, 243, 199)';
+                const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                if (tooltip) tooltip.style.display = 'block';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (messages.length >= 15) {
+                e.currentTarget.style.backgroundColor = 'rgb(255, 251, 235)';
+                const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                if (tooltip) tooltip.style.display = 'none';
+              }
+            }}
+          >
+            {messages.length >= 15 ? '15+ messages' : `${messages.length} messages`}
+          </span>
+          {messages.length >= 15 && (
+            <div
+              style={{
+                display: 'none',
+                position: 'absolute',
+                top: '100%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                marginTop: '8px',
+                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                color: 'white',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '0.375rem',
+                fontSize: '0.75rem',
+                whiteSpace: 'nowrap',
+                zIndex: 50,
+                pointerEvents: 'none',
+              }}
+            >
+              15+ messages — branch this node
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content area — scroll spans full pane width so scrollbar is at the screen edge */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
         {/* Messages area — full pane width, U-shaped context panel hangs from top */}
-        <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          {/* Remedy 2: Branch Reminder Bar (inside message list container) */}
+          <BranchReminder
+            isVisible={branchReminderVisible}
+            messageCount={messages.length}
+            onClose={() => setBranchReminderVisible(false)}
+            onDismiss={() => {
+              setBranchReminderVisible(false);
+              setBranchReminderDismissed(true);
+            }}
+          />
+
           <MessageList
             messages={messages}
             isGenerating={isGenerating}
