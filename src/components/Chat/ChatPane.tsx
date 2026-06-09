@@ -126,6 +126,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   };
 
   const handleSendWithContent = async (userMessage: string) => {
+    if (!currentNodeId || !groqClient) return;
     setIsGenerating(true);
     const abort = new AbortController();
     abortRef.current = abort;
