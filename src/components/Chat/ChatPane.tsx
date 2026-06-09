@@ -3,6 +3,9 @@ import { GitBranch, CircleDot, MousePointerClick } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
+import { useCanvasStore } from '../../stores/canvasStore';
+import { Tooltip } from '../Tooltip';
+import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { detectReferences, generateTitle } from '../../lib/groq';
 import { embedText } from '../../lib/jina';
 import { supabase } from '../../lib/supabase';
@@ -39,6 +42,13 @@ function isLikelyLowIntentInput(text: string): boolean {
 }
 
 export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { width?: number; groqClient: InstanceType<typeof Groq> | null; canvasHidden?: boolean }) {
+  const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
+
+  // When dev mode is ON: use lowered threshold; OFF: use production threshold (15)
+  const REMINDER_THRESHOLD = devMode
+    ? parseInt(import.meta.env.VITE_REMINDER_THRESHOLD || '15', 10)
+    : 15;
+
   const {
     currentNodeId, messages, currentInput,
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
@@ -49,14 +59,194 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     setBranchReminderDismissed, setBranchReminderVisible,
   } = useChatStore();
 
-  const { nodes, getAllAncestors, getNodesByProject, renameNode } = useDagStore();
+  const { nodes, getAllAncestors, getNodesByProject, renameNode, getPrevSibling, getNextSibling, addNode, pushNavigationStack, popNavigationStack, getFirstChild } = useDagStore();
   const { gripLevel, setGripLevel, shouldPerformRAG, getMinScore } = useGripStore();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const contextRoRef = useRef<ResizeObserver | null>(null);
   const messageScrollRef = useRef<HTMLDivElement>(null);
+  const innerChatPaneRef = useRef<HTMLDivElement>(null);
   const [contextH, setContextH] = useState(0);
+  const [sidePopup, setSidePopup] = useState<{ type: 'left' | 'right' | null; y: number; isEdge: boolean }>({ type: null, y: 0, isEdge: false });
+
+  const setCurrentNode = useChatStore(s => s.setCurrentNode);
+  const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
+
+  // Listen for localStorage changes (e.g., from settings modal)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'graphi_dev_mode') {
+        setDevMode(e.newValue === 'true');
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Keyboard shortcuts for tree navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!currentNodeId) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        const currentNode = nodes.find(n => n.id === currentNodeId);
+        if (!currentNode) return;
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Ctrl+Shift+Down: Create new child
+            (async () => {
+              const newChild = await addNode(null, currentNodeId, currentNode.projectId);
+              setNavigationTrigger('button');
+              await setCurrentNode(newChild.id);
+            })();
+          } else {
+            // Ctrl+Down: Pop from stack, or go to first child if stack is empty
+            const nodesToReturn = popNavigationStack();
+            setNavigationTrigger('arrow');
+            if (nodesToReturn) {
+              setCurrentNode(nodesToReturn);
+            } else {
+              const firstChild = getFirstChild(currentNodeId);
+              if (firstChild) {
+                setCurrentNode(firstChild.id);
+              }
+            }
+          }
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const prev = getPrevSibling(currentNodeId);
+          setNavigationTrigger('arrow');
+          if (prev) {
+            setCurrentNode(prev.id);
+          } else {
+            // Create new sibling
+            (async () => {
+              const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId);
+              await setCurrentNode(newSibling.id);
+            })();
+          }
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          const next = getNextSibling(currentNodeId);
+          setNavigationTrigger('arrow');
+          if (next) {
+            setCurrentNode(next.id);
+          } else {
+            // Create new sibling
+            (async () => {
+              const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId);
+              await setCurrentNode(newSibling.id);
+            })();
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          // Ctrl+Up: Push current node to stack, then navigate to parent
+          if (currentNode.parentId) {
+            setNavigationTrigger('arrow');
+            pushNavigationStack(currentNodeId);
+            setCurrentNode(currentNode.parentId);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentNodeId, nodes, getPrevSibling, getNextSibling, addNode, pushNavigationStack, popNavigationStack, getFirstChild, setCurrentNode, setNavigationTrigger]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const container = innerChatPaneRef.current;
+    if (!container || !currentNodeId) {
+      setSidePopup({ type: null, y: 0, isEdge: false });
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const containerHeight = rect.height;
+    const chatInputHeight = 70;
+
+    if (y > containerHeight - chatInputHeight) {
+      setSidePopup({ type: null, y: 0, isEdge: false });
+      return;
+    }
+
+    const currentNode = nodes.find(n => n.id === currentNodeId);
+    if (!currentNode) return;
+
+    if (x >= 0 && x <= 50) {
+      const hasPrev = !!getPrevSibling(currentNodeId);
+      setSidePopup({ type: 'left', y, isEdge: !hasPrev });
+      return;
+    }
+
+    if (x >= rect.width - 50 && x <= rect.width) {
+      const hasNext = !!getNextSibling(currentNodeId);
+      setSidePopup({ type: 'right', y, isEdge: !hasNext });
+      return;
+    }
+
+    setSidePopup({ type: null, y: 0, isEdge: false });
+  }, [currentNodeId, nodes, getPrevSibling, getNextSibling]);
+
+  const handleSideButtonClick = useCallback(async (direction: 'left' | 'right') => {
+    if (!currentNodeId) return;
+
+    const currentNode = nodes.find(n => n.id === currentNodeId);
+    if (!currentNode) return;
+
+    setNavigationTrigger('button');
+
+    if (direction === 'left') {
+      const hasPrev = !!getPrevSibling(currentNodeId);
+      if (hasPrev) {
+        const prev = getPrevSibling(currentNodeId);
+        if (prev) {
+          await setCurrentNode(prev.id);
+        }
+      } else {
+        const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId);
+        await setCurrentNode(newSibling.id);
+      }
+    } else {
+      const hasNext = !!getNextSibling(currentNodeId);
+      if (hasNext) {
+        const next = getNextSibling(currentNodeId);
+        if (next) {
+          await setCurrentNode(next.id);
+        }
+      } else {
+        const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId);
+        await setCurrentNode(newSibling.id);
+      }
+    }
+  }, [currentNodeId, nodes, getPrevSibling, getNextSibling, addNode, setCurrentNode, setNavigationTrigger]);
+
+  useEffect(() => {
+    const container = innerChatPaneRef.current;
+    if (!container) return;
+
+    container.addEventListener('mousemove', handleMouseMove as EventListener);
+    const handleLeave = () => setSidePopup({ type: null, y: 0, isEdge: false });
+    container.addEventListener('mouseleave', handleLeave);
+
+    return () => {
+      container.removeEventListener('mousemove', handleMouseMove as EventListener);
+      container.removeEventListener('mouseleave', handleLeave);
+    };
+  }, [handleMouseMove]);
+
+  const getSideTooltipText = (direction: 'left' | 'right') => {
+    if (direction === 'left') {
+      return sidePopup.type === 'left' ? (sidePopup.isEdge ? 'New sibling' : 'Previous sibling') : '';
+    } else {
+      return sidePopup.type === 'right' ? (sidePopup.isEdge ? 'New sibling' : 'Next sibling') : '';
+    }
+  };
 
   const contextCardRef = useCallback((el: HTMLDivElement | null) => {
     contextRoRef.current?.disconnect();
@@ -77,12 +267,12 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   // Remedy 2: Show branch reminder when threshold is hit
   useEffect(() => {
     const messageCount = messages.length;
-    const shouldShowReminder = messageCount >= 15 && !branchReminderDismissed;
+    const shouldShowReminder = messageCount >= REMINDER_THRESHOLD && !branchReminderDismissed;
 
-    if (shouldShowReminder && messageCount === 15) {
+    if (shouldShowReminder && messageCount === REMINDER_THRESHOLD) {
       setBranchReminderVisible(true);
     }
-  }, [messages.length, branchReminderDismissed, setBranchReminderVisible]);
+  }, [messages.length, branchReminderDismissed, setBranchReminderVisible, REMINDER_THRESHOLD]);
 
   const runStage0 = useCallback(async (message: string) => {
     if (!currentNodeId || !message.trim()) { clearContext(); return; }
@@ -296,39 +486,39 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
           </p>
         </div>
         {/* Remedy 1: Message count with tooltip */}
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span
             style={{
               fontSize: '0.875rem',
-              color: messages.length >= 15 ? 'rgb(78, 70, 0)' : 'rgb(107, 114, 128)',
-              backgroundColor: messages.length >= 15 ? 'rgb(255, 251, 235)' : 'transparent',
-              padding: messages.length >= 15 ? '0.25rem 0.75rem' : '0',
+              color: messages.length >= REMINDER_THRESHOLD ? 'rgb(78, 70, 0)' : 'rgb(107, 114, 128)',
+              backgroundColor: messages.length >= REMINDER_THRESHOLD ? 'rgb(255, 251, 235)' : 'transparent',
+              padding: messages.length >= REMINDER_THRESHOLD ? '0.25rem 0.75rem' : '0',
               borderRadius: '0.375rem',
-              fontWeight: messages.length >= 15 ? 500 : 400,
-              cursor: messages.length >= 15 ? 'pointer' : 'default',
+              fontWeight: messages.length >= REMINDER_THRESHOLD ? 500 : 400,
+              cursor: messages.length >= REMINDER_THRESHOLD ? 'pointer' : 'default',
               transition: 'background-color 0.3s ease, color 0.3s ease',
               position: 'relative',
               whiteSpace: 'nowrap',
               display: 'inline-block',
             }}
             onMouseEnter={(e) => {
-              if (messages.length >= 15) {
+              if (messages.length >= REMINDER_THRESHOLD) {
                 e.currentTarget.style.backgroundColor = 'rgb(254, 243, 199)';
                 const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                 if (tooltip) tooltip.style.display = 'block';
               }
             }}
             onMouseLeave={(e) => {
-              if (messages.length >= 15) {
+              if (messages.length >= REMINDER_THRESHOLD) {
                 e.currentTarget.style.backgroundColor = 'rgb(255, 251, 235)';
                 const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                 if (tooltip) tooltip.style.display = 'none';
               }
             }}
           >
-            {messages.length >= 15 ? '15+ messages' : `${messages.length} messages`}
+            {messages.length >= REMINDER_THRESHOLD ? `${REMINDER_THRESHOLD}+ messages` : `${messages.length} messages`}
           </span>
-          {messages.length >= 15 && (
+          {messages.length >= REMINDER_THRESHOLD && (
             <div
               style={{
                 display: 'none',
@@ -347,74 +537,99 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                 pointerEvents: 'none',
               }}
             >
-              15+ messages — branch this node
+              {REMINDER_THRESHOLD}+ messages — branch this node
             </div>
+          )}
+          {devMode && (
+            <button
+              onClick={() => setBranchReminderVisible(true)}
+              style={{
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.75rem',
+                background: 'rgb(239, 68, 68)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.25rem',
+                cursor: 'pointer',
+                fontWeight: 500,
+                opacity: 0.7,
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+              title="Dev: Trigger reminder"
+            >
+              Test
+            </button>
           )}
         </div>
       </div>
 
-      {/* Content area — scroll spans full pane width so scrollbar is at the screen edge */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Content area — scrollable, centered content */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', background: '#fff' }}>
+        {/* InnerChatPane — centered container with max-width 720px */}
+        <div ref={innerChatPaneRef} style={{ width: '100%', maxWidth: 720, minHeight: 0, display: 'flex', flexDirection: 'column', paddingLeft: 16, paddingRight: 16, position: 'relative', overflowY: 'auto' }}>
 
-        {/* Messages area — full pane width, U-shaped context panel hangs from top */}
-        <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-          {/* Remedy 2: Branch Reminder Bar (inside message list container) */}
-          <BranchReminder
-            isVisible={branchReminderVisible}
-            messageCount={messages.length}
-            onClose={() => setBranchReminderVisible(false)}
-            onDismiss={() => {
-              setBranchReminderVisible(false);
-              setBranchReminderDismissed(true);
-            }}
-          />
-
-          <MessageList
-            messages={messages}
-            isGenerating={isGenerating}
-            contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
-            scrollContainerRef={messageScrollRef}
-            onEditMessage={handleEditSend}
-          />
-
-          {/* Blur gradient just below the context panel */}
-          {allContextIds.length > 0 && contextH > 0 && (
-            <div style={{
-              position: 'absolute', top: contextH, left: 0, right: 0, height: 24,
-              background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), transparent)',
-              pointerEvents: 'none', zIndex: 8,
-            }} />
-          )}
-
-          {/* Context panel — U-shape, hangs from top, centered at 720px */}
-          {allContextIds.length > 0 && (
-            <div
-              ref={contextCardRef}
-              style={{
-                position: 'absolute', top: 0,
-                left: '50%', transform: 'translateX(-50%)',
-                width: 'calc(100% - 16px)', maxWidth: 720,
-                zIndex: 10,
+          {/* Messages area */}
+          <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            {/* Remedy 2: Branch Reminder Bar (inside message list container) */}
+            <BranchReminder
+              isVisible={branchReminderVisible}
+              messageCount={messages.length}
+              onClose={() => setBranchReminderVisible(false)}
+              onDismiss={() => {
+                setBranchReminderVisible(false);
+                setBranchReminderDismissed(true);
               }}
-              onWheel={e => { messageScrollRef.current?.scrollBy({ top: e.deltaY }); }}
-            >
-              <ContextSummary
-                ancestors={ancestors}
-                referencedIds={referencedNodeIds}
-                recommendedIds={recommendedNodeIds}
-                activeIds={activeContextNodeIds}
-                nodeMap={nodeMap}
-                onToggle={toggleNodeActive}
-                onClearAll={clearAllContext}
-                onReinit={reinitContext}
-              />
-            </div>
-          )}
-        </div>
+              threshold={REMINDER_THRESHOLD}
+              contextHeight={contextH}
+            />
 
-        {/* Chat input — centered at 720px */}
-        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: '100%', maxWidth: 720 }}>
+            <MessageList
+              messages={messages}
+              isGenerating={isGenerating}
+              contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
+              scrollContainerRef={messageScrollRef}
+              onEditMessage={handleEditSend}
+            />
+
+            {/* Blur gradient just below the context panel */}
+            {allContextIds.length > 0 && contextH > 0 && (
+              <div style={{
+                position: 'absolute', top: contextH, left: 0, right: 0, height: 24,
+                background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), transparent)',
+                pointerEvents: 'none', zIndex: 8,
+              }} />
+            )}
+
+            {/* Context panel — U-shape, hangs from top */}
+            {allContextIds.length > 0 && (
+              <div
+                ref={contextCardRef}
+                style={{
+                  position: 'absolute', top: 0,
+                  left: '50%', transform: 'translateX(-50%)',
+                  width: 'calc(100% - 16px)',
+                  zIndex: 10,
+                }}
+                onWheel={e => { messageScrollRef.current?.scrollBy({ top: e.deltaY }); }}
+              >
+                <ContextSummary
+                  ancestors={ancestors}
+                  referencedIds={referencedNodeIds}
+                  recommendedIds={recommendedNodeIds}
+                  activeIds={activeContextNodeIds}
+                  nodeMap={nodeMap}
+                  onToggle={toggleNodeActive}
+                  onClearAll={clearAllContext}
+                  onReinit={reinitContext}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Chat input */}
+          <div style={{ flexShrink: 0 }}>
             <ChatInput
               value={currentInput}
               onChange={handleInputChange}
@@ -427,6 +642,66 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               onInputBlur={() => { if (!contextDisplayMode) setContextDisplay(false); }}
             />
           </div>
+
+          {/* Left side button with tooltip */}
+          {sidePopup.type === 'left' && (
+            <div style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 40 }}>
+              <Tooltip placement="right" width={110} content={getSideTooltipText('left')} triangle>
+                <button
+                  onClick={() => handleSideButtonClick('left')}
+                  style={{
+                    width: 34, height: 34, borderRadius: '50%',
+                    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = '#111827';
+                    e.currentTarget.style.color = '#111827';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = '#E5E7EB';
+                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.12)';
+                  }}
+                >
+                  {sidePopup.isEdge ? <Plus size={16} strokeWidth={2.5} /> : <ArrowLeft size={16} strokeWidth={2.5} />}
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Right side button with tooltip */}
+          {sidePopup.type === 'right' && (
+            <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 40 }}>
+              <Tooltip placement="left" width={110} content={getSideTooltipText('right')} triangle>
+                <button
+                  onClick={() => handleSideButtonClick('right')}
+                  style={{
+                    width: 34, height: 34, borderRadius: '50%',
+                    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = '#111827';
+                    e.currentTarget.style.color = '#111827';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = '#E5E7EB';
+                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.12)';
+                  }}
+                >
+                  {sidePopup.isEdge ? <Plus size={16} strokeWidth={2.5} /> : <ArrowRight size={16} strokeWidth={2.5} />}
+                </button>
+              </Tooltip>
+            </div>
+          )}
         </div>
       </div>
     </div>

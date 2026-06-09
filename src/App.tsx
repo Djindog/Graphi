@@ -8,7 +8,7 @@ import { makeGroqClient } from './lib/groq';
 import { AuthPage } from './components/Auth/AuthPage';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Canvas } from './components/Canvas/Canvas';
-import { ChatPaneWithControls } from './components/Chat/ChatPaneWithControls';
+import { ChatPane } from './components/Chat/ChatPane';
 import { ToastContainer } from './components/Toast';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { TutorialPage } from './components/Tutorial/TutorialPage';
@@ -62,15 +62,19 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [chatPaneWidth, setChatPaneWidth] = useState(DEFAULT_CHAT_WIDTH);
+  const [chatPaneHidden, setChatPaneHidden] = useState(false);
   // null = flex:1 (normal), 0 = hidden, N = explicit px (during grab-drag)
   const [canvasWidth, setCanvasWidth] = useState<number | null>(null);
   const [dividerHovered, setDividerHovered] = useState(false);
   const [grabHovered, setGrabHovered] = useState(false);
+  const [chatPaneGrabHovered, setChatPaneGrabHovered] = useState(false);
   const [dividerTooltip, setDividerTooltip] = useState(false);
   const [grabTooltip, setGrabTooltip] = useState(false);
+  const [chatPaneGrabTooltip, setChatPaneGrabTooltip] = useState(false);
   const dividerTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const grabTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragState = useRef<{ startX: number; startWidth: number; maxW: number } | null>(null);
+  const chatPaneGrabTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragState = useRef<{ startX: number; startWidth: number; maxW: number; hideType?: 'canvas' | 'chatpane' } | null>(null);
 
   const { setFromSupabase, subscribeToProjectNodes, undo } = useDagStore();
   const storeNodes = useDagStore(s => s.nodes);
@@ -184,28 +188,60 @@ export default function App() {
     setChatPaneWidth(prev => clampChatWidth(prev, sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // Divider drag: drag left collapses canvas, snaps to hidden at threshold
+  // Divider drag: drag left/right to resize, snaps to hidden at threshold
   const onDividerMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     const sidebarW = getSidebarWidth(sidebarCollapsed);
     const available = window.innerWidth - sidebarW - 8;
     dragState.current = { startX: e.clientX, startWidth: chatPaneWidth, maxW: available };
+    let finalChatW = chatPaneWidth;
+    let hideCanvas = false;
+    let hideChatPane = false;
 
     const onMove = (ev: MouseEvent) => {
       if (!dragState.current) return;
       const delta = dragState.current.startX - ev.clientX;
-      const newChatW = Math.max(MIN_CHAT_WIDTH, dragState.current.startWidth + delta);
-      const implicitCanvasW = dragState.current.maxW - newChatW;
+      let newChatW = dragState.current.startWidth + delta;
 
-      if (implicitCanvasW < CANVAS_SNAP_THRESHOLD) {
-        setCanvasWidth(0);
+      if (newChatW < dragState.current.startWidth) {
+        // Dragging right: shrink ChatPane, expand Canvas
+        const shrinkAmount = dragState.current.startWidth - newChatW;
+        if (shrinkAmount > CANVAS_SNAP_THRESHOLD) {
+          hideChatPane = true;
+          setCanvasWidth(dragState.current.maxW);
+          setChatPaneHidden(true);
+        } else {
+          hideChatPane = false;
+          finalChatW = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, newChatW));
+          setCanvasWidth(dragState.current.maxW - finalChatW);
+          setChatPaneWidth(finalChatW);
+          setChatPaneHidden(false);
+        }
       } else {
-        setCanvasWidth(null);
-        setChatPaneWidth(Math.min(MAX_CHAT_WIDTH, newChatW));
+        // Dragging left: shrink Canvas, expand ChatPane (capped at MAX_CHAT_WIDTH)
+        finalChatW = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, newChatW));
+        const implicitCanvasW = dragState.current.maxW - finalChatW;
+        if (delta > CANVAS_SNAP_THRESHOLD) {
+          hideCanvas = true;
+          setCanvasWidth(0);
+        } else {
+          hideCanvas = false;
+          setCanvasWidth(implicitCanvasW);
+          setChatPaneWidth(finalChatW);
+        }
+        setChatPaneHidden(false);
       }
     };
 
     const onUp = () => {
+      if (hideChatPane) {
+        setCanvasWidth(null);
+        setChatPaneHidden(true);
+      } else if (hideCanvas) {
+        setCanvasWidth(0);
+      } else {
+        setCanvasWidth(null);
+      }
       dragState.current = null;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
@@ -264,6 +300,48 @@ export default function App() {
     setGrabHovered(false);
     setGrabTooltip(false);
     if (grabTooltipTimer.current) clearTimeout(grabTooltipTimer.current);
+  };
+
+  const onChatPaneGrabHandleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const sidebarW = getSidebarWidth(sidebarCollapsed);
+    const available = window.innerWidth - sidebarW - 8;
+    const startX = e.clientX;
+    let lastDragDist = 0;
+
+    const onMove = (ev: MouseEvent) => {
+      const dragDist = Math.max(0, startX - ev.clientX);
+      lastDragDist = dragDist;
+
+      if (dragDist < CANVAS_SNAP_THRESHOLD) {
+        setChatPaneHidden(true);
+      } else {
+        setChatPaneHidden(false);
+        setChatPaneWidth(Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, available - dragDist)));
+      }
+    };
+
+    const onUp = () => {
+      if (lastDragDist < CANVAS_SNAP_THRESHOLD) {
+        setChatPaneHidden(true);
+      } else {
+        setChatPaneHidden(false);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const onChatPaneGrabEnter = () => {
+    setChatPaneGrabHovered(true);
+    chatPaneGrabTooltipTimer.current = setTimeout(() => setChatPaneGrabTooltip(true), TOOLTIP_DELAY_MS);
+  };
+  const onChatPaneGrabLeave = () => {
+    setChatPaneGrabHovered(false);
+    setChatPaneGrabTooltip(false);
+    if (chatPaneGrabTooltipTimer.current) clearTimeout(chatPaneGrabTooltipTimer.current);
   };
 
   if (loading) {
@@ -343,8 +421,8 @@ export default function App() {
         />
       </div>
 
-      {/* Divider — only when canvas visible */}
-      {!canvasHidden && (
+      {/* Divider — only when both canvas and chatpane are visible */}
+      {!canvasHidden && !chatPaneHidden && (
         <div
           onMouseDown={onDividerMouseDown}
           onMouseEnter={onDividerEnter}
@@ -374,11 +452,48 @@ export default function App() {
         </div>
       )}
 
-      <ChatPaneWithControls
-        width={chatPaneWidth}
-        canvasHidden={canvasHidden}
-        groqClient={groqClient}
-      />
+      {/* Right grab handle — only when chatPane hidden */}
+      {chatPaneHidden && (
+        <div
+          onMouseDown={onChatPaneGrabHandleMouseDown}
+          onMouseEnter={onChatPaneGrabEnter}
+          onMouseLeave={onChatPaneGrabLeave}
+          onDoubleClick={() => { setChatPaneHidden(false); setChatPaneWidth(650); setChatPaneGrabTooltip(false); if (chatPaneGrabTooltipTimer.current) clearTimeout(chatPaneGrabTooltipTimer.current); }}
+          style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
+        >
+          <div style={{ width: chatPaneGrabHovered ? 3 : 1, background: chatPaneGrabHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          {chatPaneGrabTooltip && (
+            <div style={{
+              position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)',
+              background: '#111827', color: '#fff', fontSize: 12, fontWeight: 500,
+              padding: '7px 11px', borderRadius: 7, whiteSpace: 'nowrap',
+              pointerEvents: 'none', zIndex: 200, lineHeight: 1.6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+              {/* Triangle pointing right toward handle */}
+              <div style={{
+                position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)',
+                width: 0, height: 0,
+                borderTop: '4px solid transparent', borderBottom: '4px solid transparent',
+                borderLeft: '5px solid #111827',
+              }} />
+              Drag to resize<br />Double-click to show chat pane
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{
+        display: chatPaneHidden ? 'none' : 'block',
+        ...(canvasHidden ? { flex: 1 } : { width: chatPaneWidth, flexShrink: 0 }),
+        overflow: 'hidden'
+      }}>
+        <ChatPane
+          width={chatPaneWidth}
+          canvasHidden={canvasHidden}
+          groqClient={groqClient}
+        />
+      </div>
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {showKeyModal && (

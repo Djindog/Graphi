@@ -28,8 +28,9 @@ interface RenameTarget {
 
 export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
-  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode } = useChatStore();
+  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
+  const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
   const { getAllAncestors, renameNode, getDescendants } = useDagStore();
   const { foldedNodeIds, fold, unfold } = useFoldStore();
   const [overlay, setOverlay] = useState<{ node: Node; x: number; y: number; nodeScreenX: number; nodeScreenY: number; nodeWidth: number; nodeHeight: number } | null>(null);
@@ -57,6 +58,15 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
       foldedCountMap.set(id, getDescendants(id).length);
     }
   });
+
+  // Listen for dev mode changes across tabs
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setDevMode(localStorage.getItem('graphi_dev_mode') === 'true');
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Ctrl held → temporarily show context display
   useEffect(() => {
@@ -243,6 +253,22 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
         }}>
           Can't deselect the current node
+        </div>
+      )}
+
+      {/* Dev mode: Recommended nodes counter */}
+      {devMode && (
+        <div style={{
+          position: 'absolute', bottom: 16, right: 16, zIndex: 10,
+          background: '#FEF3C7', border: '1px solid #D97706',
+          borderRadius: 8, padding: '6px 12px',
+          fontSize: 12, fontWeight: 500, color: '#78350F',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span>Recommended:</span>
+          <span style={{ background: '#D97706', color: '#fff', borderRadius: 4, padding: '2px 6px', minWidth: 20, textAlign: 'center' }}>
+            {recommendedNodeIds?.length || 0}
+          </span>
         </div>
       )}
 
