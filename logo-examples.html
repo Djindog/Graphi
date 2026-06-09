@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graphi Logo Examples</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, Inter, sans-serif;
+      background: #f5f5f5;
+      padding: 40px;
+      margin: 0;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #111827;
+      margin-bottom: 40px;
+    }
+    .examples {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+    .example {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .example h3 {
+      color: #374151;
+      margin: 0 0 20px 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .description {
+      color: #6b7280;
+      font-size: 13px;
+      margin-top: 15px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Graphi Logo Concepts</h1>
+
+    <div class="examples">
+      <!-- Example 1: Simple Binary Tree -->
+      <div class="example">
+        <h3>Simple Binary Tree</h3>
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- Edges as cubic bezier curves -->
+          <path d="M 100 20 C 100 50, 70 70, 50 100" stroke="#2563EB" stroke-width="2" fill="none"/>
+          <path d="M 100 20 C 100 50, 130 70, 150 100" stroke="#2563EB" stroke-width="2" fill="none"/>
+
+          <!-- Nodes as small points -->
+          <circle cx="100" cy="20" r="4" fill="#2563EB"/>
+          <circle cx="50" cy="100" r="4" fill="#2563EB"/>
+          <circle cx="150" cy="100" r="4" fill="#2563EB"/>
+        </svg>
+        <div class="description">Minimal tree with cubic bezier curves connecting parent to two children</div>
+      </div>
+
+      <!-- Example 2: Two Levels -->
+      <div class="example">
+        <h3>Two Levels</h3>
+        <svg viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">
+          <!-- Level 2 edges -->
+          <path d="M 50 100 C 50 130, 30 150, 20 180" stroke="#2563EB" stroke-width="2" fill="none"/>
+          <path d="M 50 100 C 50 130, 70 150, 80 180" stroke="#2563EB" stroke-width="2" fill="none"/>
+          <path d="M 150 100 C 150 130, 130 150, 120 180" stroke="#2563EB" stroke-width="2" fill="none"/>
+          <path d="M 150 100 C 150 130, 170 150, 180 180" stroke="#2563EB" stroke-width="2" fill="none"/>
+
+          <!-- Level 1 edges -->
+          <path d="M 100 20 C 100 50, 70 70, 50 100" stroke="#2563EB" stroke-width="2" fill="none"/>
+          <path d="M 100 20 C 100 50, 130 70, 150 100" stroke="#2563EB" stroke-width="2" fill="none"/>
+
+          <!-- Level 2 nodes -->
+          <circle cx="20" cy="180" r="3" fill="#2563EB"/>
+          <circle cx="80" cy="180" r="3" fill="#2563EB"/>
+          <circle cx="120" cy="180" r="3" fill="#2563EB"/>
+          <circle cx="180" cy="180" r="3" fill="#2563EB"/>
+
+          <!-- Level 1 nodes -->
+          <circle cx="50" cy="100" r="3.5" fill="#2563EB"/>
+          <circle cx="150" cy="100" r="3.5" fill="#2563EB"/>
+
+          <!-- Root node -->
+          <circle cx="100" cy="20" r="4" fill="#2563EB"/>
+        </svg>
+        <div class="description">Two-level tree showing parent-child relationships with proportional node sizes</div>
+      </div>
+
+      <!-- Example 3: Organic flowing -->
+      <div class="example">
+        <h3>Organic Flow</h3>
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- Smoother, more organic bezier curves -->
+          <path d="M 100 15 C 90 45, 60 70, 45 95" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M 100 15 C 110 45, 140 70, 155 95" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+          <!-- Nodes -->
+          <circle cx="100" cy="15" r="5" fill="#2563EB"/>
+          <circle cx="45" cy="95" r="4" fill="#2563EB"/>
+          <circle cx="155" cy="95" r="4" fill="#2563EB"/>
+        </svg>
+        <div class="description">Smoother curves with more elegant flow, perfect for app icon</div>
+      </div>
+
+      <!-- Example 4: Balanced Tree -->
+      <div class="example">
+        <h3>Balanced Structure</h3>
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- Symmetrical /\ shape -->
+          <path d="M 100 10 C 85 35, 65 60, 50 85" stroke="#2563EB" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M 100 10 C 115 35, 135 60, 150 85" stroke="#2563EB" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Nodes with slight glow effect -->
+          <circle cx="100" cy="10" r="4.5" fill="#2563EB"/>
+          <circle cx="50" cy="85" r="3.5" fill="#2563EB"/>
+          <circle cx="150" cy="85" r="3.5" fill="#2563EB"/>
+        </svg>
+        <div class="description">Clean, symmetrical /\ shape - perfect balance for a logo</div>
+      </div>
+
+      <!-- Example 5: Minimalist -->
+      <div class="example">
+        <h3>Minimalist</h3>
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ultra clean lines -->
+          <path d="M 100 20 Q 70 60, 50 100" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+          <path d="M 100 20 Q 130 60, 150 100" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+
+          <!-- Tiny dots -->
+          <circle cx="100" cy="20" r="2.5" fill="#2563EB"/>
+          <circle cx="50" cy="100" r="2" fill="#2563EB"/>
+          <circle cx="150" cy="100" r="2" fill="#2563EB"/>
+        </svg>
+        <div class="description">Extremely minimal - great for small icon sizes</div>
+      </div>
+
+      <!-- Example 6: Three Levels Compact -->
+      <div class="example">
+        <h3>Three Levels</h3>
+        <svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+          <!-- Level 2 edges -->
+          <path d="M 60 90 C 50 120, 35 140, 25 165" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+          <path d="M 60 90 C 55 120, 65 140, 75 165" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+          <path d="M 140 90 C 150 120, 135 140, 125 165" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+          <path d="M 140 90 C 145 120, 165 140, 175 165" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+
+          <!-- Level 1 edges -->
+          <path d="M 100 15 C 85 50, 70 70, 60 90" stroke="#2563EB" stroke-width="2" fill="none"/>
+          <path d="M 100 15 C 115 50, 130 70, 140 90" stroke="#2563EB" stroke-width="2" fill="none"/>
+
+          <!-- Level 2 nodes (tiny) -->
+          <circle cx="25" cy="165" r="1.5" fill="#2563EB"/>
+          <circle cx="75" cy="165" r="1.5" fill="#2563EB"/>
+          <circle cx="125" cy="165" r="1.5" fill="#2563EB"/>
+          <circle cx="175" cy="165" r="1.5" fill="#2563EB"/>
+
+          <!-- Level 1 nodes -->
+          <circle cx="60" cy="90" r="2.5" fill="#2563EB"/>
+          <circle cx="140" cy="90" r="2.5" fill="#2563EB"/>
+
+          <!-- Root -->
+          <circle cx="100" cy="15" r="4" fill="#2563EB"/>
+        </svg>
+        <div class="description">More complex branching showing app's tree structure depth</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

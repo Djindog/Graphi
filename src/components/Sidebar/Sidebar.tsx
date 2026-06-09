@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { GitFork, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, Trash2, Settings, HelpCircle } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, Trash2, Settings, HelpCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useDagStore } from '../../stores/dagStore';
 import { NewProjectModal } from '../NewProjectModal';
 import { ConfirmDialog } from '../ConfirmDialog';
+import logoSvg from '../../assets/logo.svg';
 import type { Project } from '../../types';
 
 interface SidebarProps {
@@ -157,9 +158,7 @@ export function Sidebar({
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 14px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 7, background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <GitFork size={14} strokeWidth={2.2} color="#fff" />
-            </div>
+            <img src={logoSvg} alt="Graphi" style={{ width: 32, height: 32, flexShrink: 0 }} />
             <span style={{ fontSize: 16, fontWeight: 600, color: '#111827', letterSpacing: '-0.3px' }}>Graphi</span>
           </div>
           <button
