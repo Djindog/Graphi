@@ -29,7 +29,7 @@ interface RenameTarget {
 
 export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
-  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages } = useChatStore();
+  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages, hoveredSuggestedNodeId } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
   const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
   const [showStage0Result, setShowStage0Result] = useState(false);
@@ -195,7 +195,11 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   };
 
   const handleNodeBadgeClick = (nodeId: string) => {
-    unfold(nodeId);
+    if (foldedNodeIds.has(nodeId)) {
+      unfold(nodeId);
+    } else {
+      fold(nodeId);
+    }
     setOverlay(null);
     setDangerNodeIds([]);
   };
@@ -404,6 +408,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
           foldedCountMap={foldedCountMap}
+          hoveredNodeId={hoveredSuggestedNodeId}
           onNodeClick={handleNodeClick}
           onNodeCtrlClick={handleNodeCtrlClick}
           onNodeDoubleClick={handleNodeDoubleClick}
@@ -416,6 +421,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           activeNodeId={activeNodeId}
           activeContextNodeIds={contextDisplayMode ? activeContextNodeIds : []}
           deactivatedNodeIds={contextDisplayMode ? deactivatedNodeIds : []}
+          hoveredNodeId={hoveredSuggestedNodeId}
           lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
           foldedCountMap={foldedCountMap}

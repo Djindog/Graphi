@@ -23,6 +23,7 @@ interface ChatState {
   suggestedNodeId: string | null;
   guidanceEnabled: boolean;
   devShowGuidancePill: boolean;
+  hoveredSuggestedNodeId: string | null;
 
   setCurrentNode: (nodeId: string | null) => Promise<void>;
   addMessage: (msg: Message) => void;
@@ -43,6 +44,7 @@ interface ChatState {
   setSuggestedNodeId: (id: string | null) => void;
   setGuidanceEnabled: (enabled: boolean) => void;
   setDevShowGuidancePill: (show: boolean) => void;
+  setHoveredSuggestedNodeId: (id: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -61,6 +63,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   suggestedNodeId: null,
   guidanceEnabled: true,
   devShowGuidancePill: false,
+  hoveredSuggestedNodeId: null,
 
   setCurrentNode: async (nodeId) => {
     if (nodeId === null) {
@@ -203,4 +206,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setGuidanceEnabled: (enabled) => set({ guidanceEnabled: enabled }),
 
   setDevShowGuidancePill: (show) => set({ devShowGuidancePill: show }),
+
+  setHoveredSuggestedNodeId: (id) => set({ hoveredSuggestedNodeId: id }),
 }));

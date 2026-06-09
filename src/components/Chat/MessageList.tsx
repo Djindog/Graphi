@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { MessageSquarePlus, ArrowDown, Plus, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -123,9 +123,10 @@ interface Props {
   suggestedNodeId?: string;
   onMoveToNode?: (nodeId: string) => void;
   onDismissGuidance?: () => void;
+  onHoverSuggestedNode?: (nodeId: string | null) => void;
 }
 
-export function MessageList({
+export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
   messages,
   isGenerating,
   contextPadding = 0,
@@ -137,7 +138,8 @@ export function MessageList({
   suggestedNodeId,
   onMoveToNode,
   onDismissGuidance,
-}: Props) {
+  onHoverSuggestedNode,
+}, ref) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = scrollContainerRef ?? internalRef;
@@ -170,6 +172,8 @@ export function MessageList({
     setShowScrollBtn(false);
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useImperativeHandle(ref, () => ({ scrollToBottom }), []);
 
   const handleBranch = useCallback(async () => {
     if (!currentNodeId) return;
@@ -269,6 +273,7 @@ export function MessageList({
             suggestedNodeId={suggestedNodeId}
             onMoveToNode={onMoveToNode}
             onDismiss={onDismissGuidance}
+            onHoverNode={onHoverSuggestedNode}
           />
         )}
 
@@ -363,4 +368,6 @@ export function MessageList({
       </div>
     </div>
   );
-}
+});
+
+MessageList.displayName = 'MessageList';

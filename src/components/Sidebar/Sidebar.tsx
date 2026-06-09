@@ -4,6 +4,7 @@ import { GitFork, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, 
 import { supabase } from '../../lib/supabase';
 import { useDagStore } from '../../stores/dagStore';
 import { NewProjectModal } from '../NewProjectModal';
+import { ConfirmDialog } from '../ConfirmDialog';
 import type { Project } from '../../types';
 
 interface SidebarProps {
@@ -31,6 +32,7 @@ export function Sidebar({
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState('');
   const [pinnedProjects, setPinnedProjects] = useState<Set<string>>(new Set());
+  const [deleteConfirmProjectId, setDeleteConfirmProjectId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const addNode = useDagStore(s => s.addNode);
 
@@ -61,9 +63,12 @@ export function Sidebar({
     onProjectCreated({ id: projectId, name: trimmed, userId: user.id, rootNodeId: rootNode.id, createdAt: now });
   };
 
-  const handleDeleteProject = async (projectId: string) => {
+  const handleDeleteProject = (projectId: string) => {
     setProjectMenu(null);
-    if (!confirm('Delete this project and all its nodes?')) return;
+    setDeleteConfirmProjectId(projectId);
+  };
+
+  const executeDeleteProject = async (projectId: string) => {
     try {
       // Collect node IDs first
       const { data: projectNodes } = await supabase
@@ -81,8 +86,10 @@ export function Sidebar({
 
       const { error } = await supabase.from('projects').delete().eq('id', projectId);
       if (error) throw error;
+      setDeleteConfirmProjectId(null);
       onProjectDeleted(projectId);
     } catch {
+      setDeleteConfirmProjectId(null);
       onError('Failed to delete project');
     }
   };
@@ -317,6 +324,18 @@ export function Sidebar({
         <NewProjectModal
           onConfirm={createProject}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {deleteConfirmProjectId && (
+        <ConfirmDialog
+          title="Delete project"
+          message="This will delete the project and all its nodes. This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          danger
+          onConfirm={() => executeDeleteProject(deleteConfirmProjectId)}
+          onCancel={() => setDeleteConfirmProjectId(null)}
         />
       )}
     </>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { Crosshair, ArrowUp } from 'lucide-react';
 import type { GripLevel } from '../../types';
 import { Tooltip } from '../Tooltip';
@@ -39,15 +39,16 @@ const Spinner = () => (
   </svg>
 );
 
-export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }: Props) {
-  const [focused, setFocused] = useState(false);
-  const canSend = !isGenerating && !!value.trim();
+export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
+  ({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
+    const [focused, setFocused] = useState(false);
+    const canSend = !isGenerating && !!value.trim();
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); }
-  };
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); }
+    };
 
-  return (
+    return (
     <div style={{ padding: '4px 12px 16px', background: 'transparent' }}>
       {/* Unified composer container — floating card */}
       <div style={{
@@ -61,6 +62,7 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
         padding: '4px 4px 4px 0',
       }}>
         <textarea
+          ref={ref}
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -169,3 +171,4 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
     </div>
   );
 }
+);

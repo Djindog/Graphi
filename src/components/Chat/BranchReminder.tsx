@@ -9,6 +9,7 @@ interface GuidancePillProps {
   onMoveToNode?: (nodeId: string) => void;
   onDismiss?: () => void;
   suggestedNodeId?: string;
+  onHoverNode?: (nodeId: string | null) => void;
 }
 
 export const BranchReminder: React.FC<GuidancePillProps> = ({
@@ -18,6 +19,7 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
   onMoveToNode,
   onDismiss,
   suggestedNodeId,
+  onHoverNode,
 }) => {
   if (!isVisible) return null;
 
@@ -41,6 +43,7 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
           backgroundColor: 'rgb(254, 243, 199)',
@@ -48,27 +51,26 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
           borderRadius: '9999px',
           padding: '0.75rem 1.25rem',
           boxShadow: '0 2px 8px rgba(217, 119, 6, 0.15)',
-          gap: '1rem',
+          gap: '0.5rem 1rem',
           animation: 'slideDown 0.3s ease-out',
           maxWidth: '100%',
         }}
       >
         <div
           style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
             fontSize: '0.875rem',
             color: 'rgb(120, 53, 15)',
             lineHeight: '1.4',
+            wordBreak: 'break-word',
           }}
         >
           {isDrift && suggestedNodeTitle ? (
             <>
-              <span>{text}</span>
+              {text}
               <button
                 onClick={() => suggestedNodeId && onMoveToNode?.(suggestedNodeId)}
+                onMouseEnter={() => suggestedNodeId && onHoverNode?.(suggestedNodeId)}
+                onMouseLeave={() => onHoverNode?.(null)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -78,15 +80,12 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
                   padding: 0,
                   fontSize: 'inherit',
                   fontWeight: 500,
-                  transition: 'opacity 0.2s ease',
-                  opacity: 0.9,
+                  fontFamily: 'inherit',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.9')}
               >
                 {suggestedNodeTitle}
               </button>
-              <span>?</span>
+              ?
             </>
           ) : (
             <span>{text}</span>
