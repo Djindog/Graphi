@@ -11,6 +11,7 @@ import { Canvas } from './components/Canvas/Canvas';
 import { ChatPaneWithControls } from './components/Chat/ChatPaneWithControls';
 import { ToastContainer } from './components/Toast';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { TutorialPage } from './components/Tutorial/TutorialPage';
 import type { ToastMessage } from './components/Toast';
 import type { Project } from './types';
 import type Groq from 'groq-sdk';
@@ -54,6 +55,7 @@ export default function App() {
   const [groqClient, setGroqClient] = useState<GroqClient | null>(null);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [showSettingsKeyModal, setShowSettingsKeyModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [currentGroqKey, setCurrentGroqKey] = useState<string>('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
@@ -290,6 +292,7 @@ export default function App() {
         onProjectRenamed={handleProjectRenamed}
         onError={msg => addToast(msg, 'error')}
         onOpenSettings={() => setShowSettingsKeyModal(true)}
+        onOpenTutorial={() => setShowTutorial(true)}
       />
 
       {/* Left grab handle — only when canvas hidden */}
@@ -381,6 +384,8 @@ export default function App() {
       {showKeyModal && (
         <ApiKeyModal onSave={handleSaveKey} />
       )}
+
+      {showTutorial && <TutorialPage onClose={() => setShowTutorial(false)} />}
 
       {showSettingsKeyModal && (
         <ApiKeyModal

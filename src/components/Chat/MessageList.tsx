@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquarePlus, ArrowDown, Plus } from 'lucide-react';
+import { MessageSquarePlus, ArrowDown, Plus, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -10,14 +10,115 @@ import { useCanvasStore } from '../../stores/canvasStore';
 import { Tooltip } from '../Tooltip';
 import type { Message } from '../../types';
 
+function UserMessage({ msg, isLastUser, onEdit }: {
+  msg: Message;
+  isLastUser: boolean;
+  onEdit?: (id: string, content: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(msg.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const startEdit = () => {
+    setEditContent(msg.content);
+    setIsEditing(true);
+    setTimeout(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.selectionStart = el.selectionEnd = el.value.length;
+    }, 0);
+  };
+
+  const confirmEdit = () => {
+    if (editContent.trim() && onEdit) onEdit(msg.id, editContent.trim());
+    setIsEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditContent(msg.content);
+  };
+
+  if (isEditing) {
+    return (
+      <div style={{ maxWidth: '82%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <textarea
+          ref={textareaRef}
+          value={editContent}
+          onChange={e => setEditContent(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
+            if (e.key === 'Escape') cancelEdit();
+          }}
+          style={{
+            padding: '10px 15px', borderRadius: 16,
+            fontSize: 15, lineHeight: 1.6,
+            background: '#F3F4F6', border: '2px solid #2563EB',
+            color: '#111827', resize: 'none', outline: 'none',
+            fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+            minHeight: 44,
+          }}
+          rows={Math.max(2, editContent.split('\n').length)}
+        />
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button
+            onClick={cancelEdit}
+            style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 13, color: '#6B7280', cursor: 'pointer' }}
+          >Cancel</button>
+          <button
+            onClick={confirmEdit}
+            style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#111827', fontSize: 13, color: '#fff', cursor: 'pointer' }}
+          >Send</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{ maxWidth: '82%', position: 'relative' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div style={{
+        padding: '10px 15px', borderRadius: 16,
+        fontSize: 15, lineHeight: 1.6,
+        wordBreak: 'break-word', background: '#F3F4F6', color: '#111827',
+      }}>
+        <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+      </div>
+      {isLastUser && hovered && onEdit && (
+        <button
+          onClick={startEdit}
+          style={{
+            position: 'absolute', bottom: -10, right: 8,
+            width: 26, height: 26, borderRadius: '50%',
+            border: '1px solid #E5E7EB', background: '#fff',
+            color: '#9CA3AF', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#9CA3AF'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#9CA3AF'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
+        >
+          <Pencil size={12} strokeWidth={2} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   messages: Message[];
   isGenerating: boolean;
   contextPadding?: number;
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
+  onEditMessage?: (id: string, content: string) => void;
 }
 
-export function MessageList({ messages, isGenerating, contextPadding = 0, scrollContainerRef }: Props) {
+export function MessageList({ messages, isGenerating, contextPadding = 0, scrollContainerRef, onEditMessage }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = scrollContainerRef ?? internalRef;
@@ -106,21 +207,16 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
           </div>
         )}
 
-        {messages.map(msg => (
+        {(() => {
+          const lastUserIdx = messages.reduce((acc, m, i) => m.role === 'user' ? i : acc, -1);
+          return messages.map((msg, idx) => (
           <div key={msg.id} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {msg.role === 'user' ? (
-              <div style={{
-                maxWidth: '82%',
-                padding: '10px 15px',
-                borderRadius: 16,
-                fontSize: 15,
-                lineHeight: 1.6,
-                wordBreak: 'break-word',
-                background: '#F3F4F6',
-                color: '#111827',
-              }}>
-                <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
-              </div>
+              <UserMessage
+                msg={msg}
+                isLastUser={idx === lastUserIdx && !isGenerating}
+                onEdit={onEditMessage}
+              />
             ) : (
               <div style={{
                 maxWidth: '94%',
@@ -143,7 +239,8 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
               </div>
             )}
           </div>
-        ))}
+        ));
+        })()}
 
         {isGenerating && messages[messages.length - 1]?.role === 'user' && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>

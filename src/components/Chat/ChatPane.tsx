@@ -106,10 +106,27 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     debounceRef.current = setTimeout(() => runStage0(text), DEBOUNCE_MS);
   };
 
+  const handleEditSend = useCallback(async (id: string, newContent: string) => {
+    if (!newContent.trim() || !currentNodeId || isGenerating || !groqClient) return;
+    const editIdx = useChatStore.getState().messages.findIndex(m => m.id === id);
+    if (editIdx !== -1) {
+      const toDelete = useChatStore.getState().messages.slice(editIdx);
+      await Promise.all(toDelete.map(m => supabase.from('messages').delete().eq('id', m.id)));
+      useChatStore.setState(s => ({ messages: s.messages.slice(0, editIdx) }));
+    }
+    handleSendWithContent(newContent.trim());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNodeId, isGenerating, groqClient]);
+
   const handleSend = async () => {
     if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
     const userMessage = currentInput.trim();
     setCurrentInput('');
+    handleSendWithContent(userMessage);
+  };
+
+  const handleSendWithContent = async (userMessage: string) => {
+    if (!currentNodeId || !groqClient) return;
     setIsGenerating(true);
     const abort = new AbortController();
     abortRef.current = abort;
@@ -140,7 +157,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       ? `Latest user message:\n${userMessage}\n\nAvailable context, use only if relevant to the latest user message:\n${parts.join('\n\n')}`
       : userMessage;
 
-    const historyMsgs = lowIntentInput ? [] : messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const historyMsgs = lowIntentInput ? [] : useChatStore.getState().messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     const assistantMsgId = uuidv4();
     addMessage({ id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: '', createdAt: new Date().toISOString() });
@@ -277,6 +294,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             isGenerating={isGenerating}
             contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
             scrollContainerRef={messageScrollRef}
+            onEditMessage={handleEditSend}
           />
 
           {/* Blur gradient just below the context panel */}
