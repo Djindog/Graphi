@@ -25,7 +25,7 @@ interface Props {
 
 
 export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
-  const { addNode, deleteNode, getDescendants, getAllAncestors, nodes } = useDagStore();
+  const { addNode, deleteNode, deleteSubtree, getDescendants, getAllAncestors, nodes } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
   const [transplantOpen, setTransplantOpen] = useState(false);
@@ -72,10 +72,8 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
   };
 
   const executePrune = async () => {
-    const descendants = getDescendants(node.id);
-    for (const d of descendants) await deleteNode(d.id);
     if (currentNodeId === node.id && node.parentId) await setCurrentNode(node.parentId);
-    await deleteNode(node.id);
+    await deleteSubtree(node.id);
     setConfirmDialog({ action: null });
     onClose();
   };
