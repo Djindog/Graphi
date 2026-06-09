@@ -4,6 +4,7 @@ import { useGraphStore } from '../../stores/graphStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useFoldStore } from '../../stores/foldStore';
+import { supabase } from '../../lib/supabase';
 import { TreeCanvas } from './TreeCanvas';
 import { ForceCanvas } from './ForceCanvas';
 import { NodeToolOverlay } from './NodeToolOverlay';
@@ -28,10 +29,32 @@ interface RenameTarget {
 
 export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
-  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds } = useChatStore();
+  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
   const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
+  const [showStage0Result, setShowStage0Result] = useState(false);
+  const [refreshedSummary, setRefreshedSummary] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const { getAllAncestors, renameNode, getDescendants } = useDagStore();
+
+  const refreshNodeSummary = useCallback(async () => {
+    if (!activeNodeId) return;
+    setRefreshing(true);
+    try {
+      const { data } = await supabase
+        .from('nodes')
+        .select('summary')
+        .eq('id', activeNodeId)
+        .single();
+      if (data) {
+        setRefreshedSummary(data.summary);
+      }
+    } catch (err) {
+      console.error('Failed to refresh summary:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeNodeId]);
   const { foldedNodeIds, fold, unfold } = useFoldStore();
   const [overlay, setOverlay] = useState<{ node: Node; x: number; y: number; nodeScreenX: number; nodeScreenY: number; nodeWidth: number; nodeHeight: number } | null>(null);
   const [dangerNodeIds, setDangerNodeIds] = useState<string[]>([]);
@@ -43,6 +66,13 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const lineageNodeIds = activeNodeId ? getAllAncestors(activeNodeId).map(n => n.id) : [];
+  const currentNode = nodes.find(n => n.id === activeNodeId);
+
+  // Dev testing: detect if thread is getting long
+  const REMINDER_THRESHOLD = devMode
+    ? parseInt(import.meta.env.VITE_REMINDER_THRESHOLD || '2', 10)
+    : 15;
+  const threadGettingLong = messages.length >= REMINDER_THRESHOLD;
 
   // IDs that are hidden because an ancestor is folded
   const hiddenNodeIds = new Set<string>();
@@ -67,6 +97,11 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
+  // Reset refreshed summary when node changes
+  useEffect(() => {
+    setRefreshedSummary(null);
+  }, [activeNodeId]);
 
   // Ctrl held → temporarily show context display
   useEffect(() => {
@@ -256,19 +291,99 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         </div>
       )}
 
-      {/* Dev mode: Recommended nodes counter */}
+      {/* Dev mode: Summary & Stage 0 testing panel */}
       {devMode && (
         <div style={{
           position: 'absolute', bottom: 16, right: 16, zIndex: 10,
-          background: '#FEF3C7', border: '1px solid #D97706',
-          borderRadius: 8, padding: '6px 12px',
-          fontSize: 12, fontWeight: 500, color: '#78350F',
-          display: 'flex', alignItems: 'center', gap: 6,
+          display: 'flex', flexDirection: 'column', gap: 8,
+          maxHeight: 'calc(100vh - 200px)',
+          overflow: 'auto',
         }}>
-          <span>Recommended:</span>
-          <span style={{ background: '#D97706', color: '#fff', borderRadius: 4, padding: '2px 6px', minWidth: 20, textAlign: 'center' }}>
-            {recommendedNodeIds?.length || 0}
-          </span>
+          {/* Summary display card */}
+          <div style={{
+            background: '#EFF6FF', border: '1px solid #0EA5E9',
+            borderRadius: 8, padding: '12px 14px',
+            fontSize: 11, color: '#0369A1', minWidth: 500,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 12 }}>📝 Summary Debug</div>
+
+            {/* Node info */}
+            <div style={{ fontSize: 9, color: '#0369A1', marginBottom: 8, padding: '6px', background: 'rgba(3, 105, 161, 0.05)', borderRadius: 4 }}>
+              <div><strong>Node ID:</strong> <code style={{ fontSize: 8 }}>{activeNodeId || '(none)'}</code></div>
+              <div><strong>Messages:</strong> {messages.length}</div>
+            </div>
+
+            {/* Summary content */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Summary Content:</span>
+                <span style={{ fontSize: 8, color: '#6B7280' }}>
+                  {refreshing ? 'Loading...' : refreshedSummary !== null ? '(from DB)' : '(local)'}
+                </span>
+              </div>
+              <div style={{
+                background: '#fff', border: '2px solid #BAE6FD',
+                borderRadius: 4, padding: '8px 10px', fontSize: 10,
+                lineHeight: 1.5, maxHeight: 200, minHeight: 80, overflowY: 'auto',
+                fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              }}>
+                {refreshedSummary !== null ? refreshedSummary : (currentNode?.summary ? currentNode.summary : '(empty)')}
+              </div>
+            </div>
+
+            {/* Test buttons */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <button
+                onClick={() => setShowStage0Result(!showStage0Result)}
+                style={{
+                  flex: 1, padding: '6px 10px', fontSize: 10,
+                  background: driftDetected ? '#FCA5A5' : '#A7F3D0',
+                  border: 'none', borderRadius: 4, cursor: 'pointer',
+                  fontWeight: 600, color: '#1F2937',
+                }}
+              >
+                {showStage0Result ? 'Hide' : 'Show'} Stage 0
+              </button>
+              <button
+                onClick={refreshNodeSummary}
+                disabled={refreshing}
+                style={{
+                  flex: 1, padding: '6px 10px', fontSize: 10,
+                  background: '#BFDBFE', border: 'none', borderRadius: 4,
+                  cursor: refreshing ? 'not-allowed' : 'pointer',
+                  fontWeight: 600, color: '#1F2937',
+                  opacity: refreshing ? 0.6 : 1,
+                }}
+              >
+                {refreshing ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {showStage0Result && (
+              <div style={{
+                fontSize: 10, fontFamily: 'monospace',
+                background: '#1F2937', color: '#10B981', padding: '10px',
+                borderRadius: 4, lineHeight: 1.6, marginBottom: 8,
+              }}>
+                <div>driftDetected: <span style={{ color: driftDetected ? '#EF4444' : '#10B981', fontWeight: 'bold' }}>{String(driftDetected)}</span></div>
+                <div>suggestedNodeId: <span style={{ color: '#60A5FA' }}>{suggestedNodeId || 'null'}</span></div>
+                {threadGettingLong && <div style={{ color: '#FCD34D', fontWeight: 'bold' }}>⚠️ THREAD GETTING LONG</div>}
+              </div>
+            )}
+          </div>
+
+          {/* Recommended nodes counter */}
+          <div style={{
+            background: '#FEF3C7', border: '1px solid #D97706',
+            borderRadius: 8, padding: '6px 12px',
+            fontSize: 12, fontWeight: 500, color: '#78350F',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span>Recommended:</span>
+            <span style={{ background: '#D97706', color: '#fff', borderRadius: 4, padding: '2px 6px', minWidth: 20, textAlign: 'center' }}>
+              {recommendedNodeIds?.length || 0}
+            </span>
+          </div>
         </div>
       )}
 

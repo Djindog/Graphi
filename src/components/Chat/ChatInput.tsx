@@ -11,6 +11,8 @@ interface Props {
   isGenerating: boolean;
   gripLevel: GripLevel;
   onGripChange: (level: GripLevel) => void;
+  guidanceEnabled?: boolean;
+  onGuidanceChange?: (enabled: boolean) => void;
   onInputFocus?: () => void;
   onInputBlur?: () => void;
 }
@@ -37,7 +39,7 @@ const Spinner = () => (
   </svg>
 );
 
-export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange, onInputFocus, onInputBlur }: Props) {
+export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }: Props) {
   const [focused, setFocused] = useState(false);
   const canSend = !isGenerating && !!value.trim();
 
@@ -105,6 +107,27 @@ export function ChatInput({ value, onChange, onSend, onStop, isGenerating, gripL
                 </button>
               </Tooltip>
             ))}
+
+            {/* Guidance toggle */}
+            <Tooltip
+              placement="top"
+              width={185}
+              content={guidanceEnabled ? 'Guidance is on. Branch/drift hints will appear.' : 'Guidance is off. No branch/drift hints.'}
+            >
+              <button
+                onClick={() => onGuidanceChange?.(!guidanceEnabled)}
+                style={{
+                  padding: '4px 9px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer',
+                  background: guidanceEnabled ? '#111827' : 'transparent',
+                  color: guidanceEnabled ? '#fff' : '#9CA3AF',
+                  fontWeight: guidanceEnabled ? 500 : 400,
+                  transition: 'all 0.1s', fontFamily: 'inherit',
+                  marginLeft: '4px',
+                }}
+              >
+                {guidanceEnabled ? 'Guidance' : 'No guidance'}
+              </button>
+            </Tooltip>
           </div>
 
           {/* Send / Stop */}

@@ -8,6 +8,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { Tooltip } from '../Tooltip';
+import { BranchReminder } from './BranchReminder';
 import type { Message } from '../../types';
 
 function UserMessage({ msg, isLastUser, onEdit }: {
@@ -116,9 +117,27 @@ interface Props {
   contextPadding?: number;
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   onEditMessage?: (id: string, content: string) => void;
+  guidancePillVisible?: boolean;
+  guidancePillType?: 'length' | 'drift' | 'noGuidance';
+  suggestedNodeTitle?: string;
+  suggestedNodeId?: string;
+  onMoveToNode?: (nodeId: string) => void;
+  onDismissGuidance?: () => void;
 }
 
-export function MessageList({ messages, isGenerating, contextPadding = 0, scrollContainerRef, onEditMessage }: Props) {
+export function MessageList({
+  messages,
+  isGenerating,
+  contextPadding = 0,
+  scrollContainerRef,
+  onEditMessage,
+  guidancePillVisible = false,
+  guidancePillType = 'length',
+  suggestedNodeTitle,
+  suggestedNodeId,
+  onMoveToNode,
+  onDismissGuidance,
+}: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = scrollContainerRef ?? internalRef;
@@ -135,7 +154,7 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
     if (!userScrolledUp.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, guidancePillVisible]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -241,6 +260,17 @@ export function MessageList({ messages, isGenerating, contextPadding = 0, scroll
           </div>
         ));
         })()}
+
+        {guidancePillVisible && (
+          <BranchReminder
+            type={guidancePillType}
+            isVisible={true}
+            suggestedNodeTitle={suggestedNodeTitle}
+            suggestedNodeId={suggestedNodeId}
+            onMoveToNode={onMoveToNode}
+            onDismiss={onDismissGuidance}
+          />
+        )}
 
         {isGenerating && messages[messages.length - 1]?.role === 'user' && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>

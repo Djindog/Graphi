@@ -41,8 +41,6 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
     localStorage.setItem('graphi_dev_mode', newValue ? 'true' : 'false');
   };
 
-  const isUpdate = !!existingKey;
-
   return (
     <div
       onClick={onClose}

@@ -1,54 +1,56 @@
 import React from 'react';
 
-interface BranchReminderProps {
+type GuidancePillType = 'length' | 'drift' | 'noGuidance';
+
+interface GuidancePillProps {
+  type: GuidancePillType;
   isVisible: boolean;
-  messageCount: number;
-  onClose: () => void;
-  onDismiss: () => void;
-  threshold?: number;
-  contextHeight?: number;
+  suggestedNodeTitle?: string;
+  onMoveToNode?: (nodeId: string) => void;
+  onDismiss?: () => void;
+  suggestedNodeId?: string;
 }
 
-export const BranchReminder: React.FC<BranchReminderProps> = ({
+export const BranchReminder: React.FC<GuidancePillProps> = ({
+  type,
   isVisible,
-  messageCount,
-  onClose,
+  suggestedNodeTitle,
+  onMoveToNode,
   onDismiss,
-  threshold = 15,
-  contextHeight = 0,
+  suggestedNodeId,
 }) => {
-  if (!isVisible || messageCount < threshold) return null;
+  if (!isVisible) return null;
 
-  const topPosition = contextHeight > 0 ? `${contextHeight + 12}px` : '0.75rem';
+  const isDrift = type === 'drift';
+  const isNoGuidance = type === 'noGuidance';
+  const text = isDrift
+    ? 'This seems off-topic. Move to '
+    : isNoGuidance
+    ? 'No guidance needed. Conversation is coherent.'
+    : 'This thread is getting long. Consider branching.';
 
   return (
     <div
       style={{
-        position: 'absolute',
-        top: topPosition,
-        left: '1rem',
-        right: '1rem',
-        zIndex: 10,
-        width: 'calc(100% - 2rem)',
         display: 'flex',
         justifyContent: 'center',
-        pointerEvents: 'none',
+        padding: '0.75rem 1rem',
+        gap: '1rem',
       }}
     >
       <div
         style={{
-          width: '100%',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           backgroundColor: 'rgb(254, 243, 199)',
           border: '1px solid rgb(217, 119, 6)',
           borderRadius: '9999px',
-          padding: '0.50rem 1.25rem',
+          padding: '0.75rem 1.25rem',
           boxShadow: '0 2px 8px rgba(217, 119, 6, 0.15)',
           gap: '1rem',
           animation: 'slideDown 0.3s ease-out',
-          pointerEvents: 'auto',
+          maxWidth: '100%',
         }}
       >
         <div
@@ -57,73 +59,75 @@ export const BranchReminder: React.FC<BranchReminderProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
+            fontSize: '0.875rem',
+            color: 'rgb(120, 53, 15)',
+            lineHeight: '1.4',
           }}
         >
-          <p
+          {isDrift && suggestedNodeTitle ? (
+            <>
+              <span>{text}</span>
+              <button
+                onClick={() => suggestedNodeId && onMoveToNode?.(suggestedNodeId)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgb(120, 53, 15)',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                  fontSize: 'inherit',
+                  fontWeight: 500,
+                  transition: 'opacity 0.2s ease',
+                  opacity: 0.9,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.9')}
+              >
+                {suggestedNodeTitle}
+              </button>
+              <span>?</span>
+            </>
+          ) : (
+            <span>{text}</span>
+          )}
+        </div>
+
+        {!isDrift && !isNoGuidance && (
+          <div
             style={{
-              margin: 0,
-              fontSize: '0.875rem',
-              color: 'rgb(120, 53, 15)',
-              lineHeight: '1.4',
+              display: 'flex',
+              gap: '0.75rem',
+              flexShrink: 0,
               whiteSpace: 'nowrap',
             }}
           >
-            This thread is getting long. Consider branching.
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.75rem',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgb(120, 53, 15)',
-              cursor: 'pointer',
-              padding: '0 0.25rem',
-              fontSize: '1.25rem',
-              lineHeight: 1,
-              opacity: 0.8,
-              transition: 'opacity 0.2s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
-            aria-label="Close"
-          >
-            ×
-          </button>
-          {/* <button
-            onClick={onDismiss}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgb(120, 53, 15)',
-              cursor: 'pointer',
-              padding: '0.25rem 0.5rem',
-              fontSize: '0.875rem',
-              opacity: 0.8,
-              transition: 'opacity 0.2s ease',
-              textDecoration: 'none',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '1';
-              e.currentTarget.style.textDecoration = 'underline';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '0.8';
-              e.currentTarget.style.textDecoration = 'none';
-            }}
-          >
-            Don't show again
-          </button> */}
-        </div>
+            <button
+              onClick={onDismiss}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgb(120, 53, 15)',
+                cursor: 'pointer',
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.875rem',
+                opacity: 0.8,
+                transition: 'opacity 0.2s ease',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.textDecoration = 'underline';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '0.8';
+                e.currentTarget.style.textDecoration = 'none';
+              }}
+            >
+              Don't show again
+            </button>
+          </div>
+        )}
 
         <style>{`
           @keyframes slideDown {
@@ -134,17 +138,6 @@ export const BranchReminder: React.FC<BranchReminderProps> = ({
             to {
               opacity: 1;
               transform: translateY(0);
-            }
-          }
-
-          @keyframes fadeOut {
-            from {
-              opacity: 1;
-              transform: translateY(0);
-            }
-            to {
-              opacity: 0;
-              transform: translateY(-10px);
             }
           }
         `}</style>

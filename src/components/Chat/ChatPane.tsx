@@ -6,18 +6,17 @@ import { useGripStore } from '../../stores/gripStore';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { Tooltip } from '../Tooltip';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
-import { detectReferences, generateTitle } from '../../lib/groq';
-import { embedText } from '../../lib/jina';
+import { detectReferencesAndDrift, generateTitle } from '../../lib/groq';
 import { supabase } from '../../lib/supabase';
+import { processSummary } from '../../lib/summaryManagement';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ContextSummary } from './ContextSummary';
-import { BranchReminder } from './BranchReminder';
 import type { Message } from '../../types';
 import type Groq from 'groq-sdk';
 
-const DEBOUNCE_MS = 500;
+const DEBOUNCE_MS = 2000;
 const CHAT_SYSTEM_PROMPT =
   'You are a helpful thinking partner. Answer the latest user message, using context only as supporting material when it is relevant. Do not infer a task from context alone. If the latest user message is unclear, nonsensical, random characters, or has no interpretable request, say you cannot tell what they want and ask them to clarify.';
 
@@ -55,12 +54,14 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     isGenerating, setCurrentInput, setReferenced, setRecommended,
     initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
     contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
-    branchReminderDismissed, branchReminderVisible,
-    setBranchReminderDismissed, setBranchReminderVisible,
+    branchReminderDismissed,
+    setBranchReminderDismissed,
+    guidanceEnabled, setGuidanceEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
+    devShowGuidancePill, setDevShowGuidancePill,
   } = useChatStore();
 
   const { nodes, getAllAncestors, getNodesByProject, renameNode, getPrevSibling, getNextSibling, addNode, pushNavigationStack, popNavigationStack, getFirstChild } = useDagStore();
-  const { gripLevel, setGripLevel, shouldPerformRAG, getMinScore } = useGripStore();
+  const { gripLevel, setGripLevel } = useGripStore();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -72,6 +73,15 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
 
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
+
+  // Determine guidance pill visibility and type
+  const messageCount = messages.length;
+  const showRemedy2 = guidanceEnabled && messageCount >= REMINDER_THRESHOLD && !driftDetected && !branchReminderDismissed;
+  const showRemedy3 = guidanceEnabled && driftDetected && suggestedNodeId;
+  const showGuidancePill = showRemedy2 || showRemedy3 || devShowGuidancePill;
+  const noGuidanceNeeded = devShowGuidancePill && !showRemedy2 && !showRemedy3;
+  const pillType = showRemedy3 ? 'drift' : noGuidanceNeeded ? 'noGuidance' : 'length' as const;
+  const suggestedNode = suggestedNodeId ? nodes.find(n => n.id === suggestedNodeId) : null;
 
   // Listen for localStorage changes (e.g., from settings modal)
   useEffect(() => {
@@ -264,43 +274,34 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     initContext(ancestors.map(a => a.id));
   }, [currentNodeId, getAllAncestors, initContext]);
 
-  // Remedy 2: Show branch reminder when threshold is hit
-  useEffect(() => {
-    const messageCount = messages.length;
-    const shouldShowReminder = messageCount >= REMINDER_THRESHOLD && !branchReminderDismissed;
-
-    if (shouldShowReminder && messageCount === REMINDER_THRESHOLD) {
-      setBranchReminderVisible(true);
-    }
-  }, [messages.length, branchReminderDismissed, setBranchReminderVisible, REMINDER_THRESHOLD]);
-
   const runStage0 = useCallback(async (message: string) => {
-    if (!currentNodeId || !message.trim()) { clearContext(); return; }
-    if (isLikelyLowIntentInput(message)) { clearContext(); return; }
+    if (!currentNodeId || !message.trim()) { clearContext(); setDriftDetected(false); setSuggestedNodeId(null); return; }
+    if (isLikelyLowIntentInput(message)) { clearContext(); setDriftDetected(false); setSuggestedNodeId(null); return; }
     const projectId = currentNode?.projectId;
     if (!projectId) return;
     const projectNodes = getNodesByProject(projectId);
 
-    const [referenced, recommended] = await Promise.all([
-      (groqClient ? detectReferences(message, projectNodes, groqClient) : Promise.resolve([] as string[])).catch(() => [] as string[]),
-      shouldPerformRAG()
-        ? (async () => {
-            try {
-              const embedding = await embedText(message);
-              const minScore = getMinScore();
-              const matchCount = { off: 0, low: 15, mid: 8, high: 3 }[gripLevel];
-              const { data } = await supabase.rpc('search_nodes', {
-                query_embedding: embedding, match_threshold: minScore,
-                match_count: matchCount, project_id: projectId,
-              });
-              return ((data || []) as { id: string }[]).map(d => d.id);
-            } catch { return [] as string[]; }
-          })()
-        : Promise.resolve([] as string[]),
-    ]);
-    setReferenced(referenced);
-    setRecommended(recommended);
-  }, [currentNodeId, currentNode, getNodesByProject, shouldPerformRAG, getMinScore, gripLevel, setReferenced, setRecommended, clearContext, groqClient]);
+    try {
+      const { referencedNodeIds, driftDetected, suggestedNodeId } = await (
+        groqClient
+          ? detectReferencesAndDrift(message, projectNodes, currentNode?.summary || '', projectNodes, groqClient)
+          : Promise.resolve({ referencedNodeIds: [] as string[], driftDetected: false, suggestedNodeId: null as string | null })
+      );
+
+      setReferenced(referencedNodeIds);
+      setDriftDetected(driftDetected);
+      setSuggestedNodeId(suggestedNodeId);
+
+      // Keep RAG disabled for now (not calling embedText/search_nodes)
+      setRecommended([]);
+    } catch (err) {
+      console.error('Stage 0 error:', err);
+      setReferenced([]);
+      setDriftDetected(false);
+      setSuggestedNodeId(null);
+      setRecommended([]);
+    }
+  }, [currentNodeId, currentNode, getNodesByProject, setReferenced, setRecommended, setDriftDetected, setSuggestedNodeId, clearContext, groqClient]);
 
   const handleInputChange = (text: string) => {
     setCurrentInput(text);
@@ -308,6 +309,18 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     if (!text.trim()) { partialClearContext(); return; }
     debounceRef.current = setTimeout(() => runStage0(text), DEBOUNCE_MS);
   };
+
+  const handleMoveToNode = useCallback((targetNodeId: string) => {
+    const draft = currentInput.trim();
+    if (!draft) return;
+    setCurrentInput('');
+    setCurrentNode(targetNodeId);
+    setDriftDetected(false);
+    setSuggestedNodeId(null);
+    setTimeout(() => {
+      setCurrentInput(draft);
+    }, 0);
+  }, [currentInput, setCurrentInput, setCurrentNode, setDriftDetected, setSuggestedNodeId]);
 
   const handleEditSend = useCallback(async (id: string, newContent: string) => {
     if (!newContent.trim() || !currentNodeId || isGenerating || !groqClient) return;
@@ -324,6 +337,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const handleSend = async () => {
     if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
     const userMessage = currentInput.trim();
+
+    // Force Stage 0 to run immediately (clear debounce and execute)
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
+    // Run Stage 0 synchronously before sending
+    await runStage0(userMessage);
+
     setCurrentInput('');
     handleSendWithContent(userMessage);
   };
@@ -418,6 +441,14 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       });
 
       await useDagStore.getState().updateNodeContent(currentNodeId, fullResponse);
+
+      // Process summary in background (extract, append, optionally compact)
+      const currentNode = nodeMap.get(currentNodeId);
+      if (currentNode) {
+        processSummary(currentNodeId, fullResponse, currentNode.summary || '', groqClient).catch(err =>
+          console.error('Summary processing error:', err)
+        );
+      }
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === 'AbortError';
       if (!isAbort) {
@@ -542,7 +573,9 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
           )}
           {devMode && (
             <button
-              onClick={() => setBranchReminderVisible(true)}
+              onClick={() => {
+                setDevShowGuidancePill(!devShowGuidancePill);
+              }}
               style={{
                 padding: '0.25rem 0.5rem',
                 fontSize: '0.75rem',
@@ -557,7 +590,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
-              title="Dev: Trigger reminder"
+              title="Dev: Reset reminder / Trigger drift"
             >
               Test
             </button>
@@ -572,25 +605,20 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
 
           {/* Messages area */}
           <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-            {/* Remedy 2: Branch Reminder Bar (inside message list container) */}
-            <BranchReminder
-              isVisible={branchReminderVisible}
-              messageCount={messages.length}
-              onClose={() => setBranchReminderVisible(false)}
-              onDismiss={() => {
-                setBranchReminderVisible(false);
-                setBranchReminderDismissed(true);
-              }}
-              threshold={REMINDER_THRESHOLD}
-              contextHeight={contextH}
-            />
-
             <MessageList
               messages={messages}
               isGenerating={isGenerating}
               contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
               scrollContainerRef={messageScrollRef}
               onEditMessage={handleEditSend}
+              guidancePillVisible={Boolean(showGuidancePill)}
+              guidancePillType={pillType}
+              suggestedNodeTitle={suggestedNode?.title ?? suggestedNodeId ?? undefined}
+              suggestedNodeId={suggestedNodeId ?? undefined}
+              onMoveToNode={handleMoveToNode}
+              onDismissGuidance={() => {
+                setBranchReminderDismissed(true);
+              }}
             />
 
             {/* Blur gradient just below the context panel */}
@@ -638,6 +666,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               isGenerating={isGenerating}
               gripLevel={gripLevel}
               onGripChange={setGripLevel}
+              guidanceEnabled={guidanceEnabled}
+              onGuidanceChange={setGuidanceEnabled}
               onInputFocus={() => setContextDisplay(true)}
               onInputBlur={() => { if (!contextDisplayMode) setContextDisplay(false); }}
             />

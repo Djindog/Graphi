@@ -43,6 +43,8 @@ export const useDagStore = create<DagState>((set, get) => ({
       parentId,
       order,
       version: 1,
+      summary: null,
+      embedding: null,
       createdAt: now,
       updatedAt: now,
     };

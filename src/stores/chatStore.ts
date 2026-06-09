@@ -19,7 +19,10 @@ interface ChatState {
   contextDisplayMode: boolean;
   lastContextSnapshot: ContextSnapshot | null;
   branchReminderDismissed: boolean;
-  branchReminderVisible: boolean;
+  driftDetected: boolean;
+  suggestedNodeId: string | null;
+  guidanceEnabled: boolean;
+  devShowGuidancePill: boolean;
 
   setCurrentNode: (nodeId: string | null) => Promise<void>;
   addMessage: (msg: Message) => void;
@@ -36,7 +39,10 @@ interface ChatState {
   clearAllContext: () => void;
   reinitContext: () => void;
   setBranchReminderDismissed: (dismissed: boolean) => void;
-  setBranchReminderVisible: (visible: boolean) => void;
+  setDriftDetected: (detected: boolean) => void;
+  setSuggestedNodeId: (id: string | null) => void;
+  setGuidanceEnabled: (enabled: boolean) => void;
+  setDevShowGuidancePill: (show: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -51,7 +57,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   contextDisplayMode: false,
   lastContextSnapshot: null,
   branchReminderDismissed: false,
-  branchReminderVisible: false,
+  driftDetected: false,
+  suggestedNodeId: null,
+  guidanceEnabled: true,
+  devShowGuidancePill: false,
 
   setCurrentNode: async (nodeId) => {
     if (nodeId === null) {
@@ -65,6 +74,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentInput: '',
         contextDisplayMode: false,
         lastContextSnapshot: null,
+        driftDetected: false,
+        suggestedNodeId: null,
       });
       return;
     }
@@ -78,6 +89,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentInput: '',
       contextDisplayMode: false,
       lastContextSnapshot: null,
+      driftDetected: false,
+      suggestedNodeId: null,
     });
     const { data } = await supabase
       .from('messages')
@@ -183,5 +196,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setBranchReminderDismissed: (dismissed) => set({ branchReminderDismissed: dismissed }),
 
-  setBranchReminderVisible: (visible) => set({ branchReminderVisible: visible }),
+  setDriftDetected: (detected) => set({ driftDetected: detected }),
+
+  setSuggestedNodeId: (id) => set({ suggestedNodeId: id }),
+
+  setGuidanceEnabled: (enabled) => set({ guidanceEnabled: enabled }),
+
+  setDevShowGuidancePill: (show) => set({ devShowGuidancePill: show }),
 }));
