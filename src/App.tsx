@@ -31,7 +31,8 @@ function getSidebarWidth(collapsed: boolean) {
 }
 
 function clampChatWidth(w: number, sidebarCollapsed: boolean) {
-  const max = Math.min(MAX_CHAT_WIDTH, Math.floor((window.innerWidth - getSidebarWidth(sidebarCollapsed)) / 2));
+  const available = window.innerWidth - getSidebarWidth(sidebarCollapsed) - 8;
+  const max = Math.floor(available * 2 / 3);
   return Math.max(MIN_CHAT_WIDTH, Math.min(max, w));
 }
 
@@ -90,21 +91,24 @@ export default function App() {
     }
   }, [sidebarCollapsed, canvasWidth]);
 
-  // Force sidebar open during tutorial
-  useEffect(() => {
-    if (isTutorialActive) setSidebarCollapsed(false);
-  }, [isTutorialActive]);
-
-  // When tutorial ends: clear active project and refresh project list
+  // Tutorial lifecycle: clear project state when tutorial starts; refresh when it ends
   const prevTutorialActive = useRef(false);
   useEffect(() => {
+    if (!prevTutorialActive.current && isTutorialActive) {
+      // Tutorial just became active: isolate from any existing project
+      setSidebarCollapsed(false);
+      setActiveProject(null);
+      setFromSupabase([]);
+      void setCurrentNode(null);
+    }
     if (prevTutorialActive.current && !isTutorialActive && user) {
+      // Tutorial just ended: refresh project list
       setActiveProject(null);
       setFromSupabase([]);
       loadAllProjects(user.id);
     }
     prevTutorialActive.current = isTutorialActive;
-  // loadAllProjects is stable (defined outside component) — safe to omit
+  // loadAllProjects is stable (useCallback-free module fn) — safe to omit
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTutorialActive, user]);
 
@@ -263,10 +267,11 @@ export default function App() {
           setChatPaneHidden(false);
         }
       } else {
-        // Dragging left: shrink Canvas, expand ChatPane (capped at MAX_CHAT_WIDTH)
-        finalChatW = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, newChatW));
+        // Dragging left: shrink Canvas, expand ChatPane up to 2/3 of available, then snap to full
+        const maxBeforeSnap = Math.floor(dragState.current.maxW * 2 / 3);
+        finalChatW = Math.max(MIN_CHAT_WIDTH, Math.min(maxBeforeSnap, newChatW));
         const implicitCanvasW = dragState.current.maxW - finalChatW;
-        if (delta > CANVAS_SNAP_THRESHOLD) {
+        if (newChatW > maxBeforeSnap) {
           hideCanvas = true;
           setCanvasWidth(0);
         } else {

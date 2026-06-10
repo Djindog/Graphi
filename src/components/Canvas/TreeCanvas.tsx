@@ -715,6 +715,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
         const badgeGroup = g.append('g')
           .attr('class', 'fold-badge-group')
+          .attr('data-tutorial', 'fold-badge')
           .attr('cursor', 'pointer');
 
         badgeGroup.append('rect')

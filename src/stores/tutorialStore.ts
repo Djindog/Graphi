@@ -4,17 +4,17 @@ import { supabase } from '../lib/supabase';
 
 export type TutorialStepId =
   | 'welcome' | 'create-project' | 'name-project' | 'type-question' | 'wait-response'
-  | 'branch-from-menu' | 'auto-create-tree' | 'select-node-context' | 'ctrl-click-add'
-  | 'ctrl-click-remove' | 'deactivate-from-bar' | 'fold-node' | 'unfold-node'
-  | 'cut-node' | 'delete-subtree' | 'undo-delete' | 'ctrl-arrow-up'
-  | 'ctrl-arrow-down' | 'done';
+  | 'branch-from-menu' | 'auto-create-tree' | 'select-node-context' | 'explain-context-bar'
+  | 'ctrl-click-add' | 'ctrl-click-remove' | 'deactivate-from-bar' | 'reactivate-from-bar'
+  | 'fold-node' | 'unfold-node' | 'cut-node' | 'undo-delete' | 'delete-subtree' | 'undo-subtree'
+  | 'ctrl-arrow-up' | 'ctrl-arrow-down' | 'done';
 
 export const TUTORIAL_STEPS: TutorialStepId[] = [
   'welcome', 'create-project', 'name-project', 'type-question', 'wait-response',
-  'branch-from-menu', 'auto-create-tree', 'select-node-context', 'ctrl-click-add',
-  'ctrl-click-remove', 'deactivate-from-bar', 'fold-node', 'unfold-node',
-  'cut-node', 'delete-subtree', 'undo-delete', 'ctrl-arrow-up',
-  'ctrl-arrow-down', 'done',
+  'branch-from-menu', 'auto-create-tree', 'select-node-context', 'explain-context-bar',
+  'ctrl-click-add', 'ctrl-click-remove', 'deactivate-from-bar', 'reactivate-from-bar',
+  'fold-node', 'unfold-node', 'cut-node', 'undo-delete', 'delete-subtree', 'undo-subtree',
+  'ctrl-arrow-up', 'ctrl-arrow-down', 'done',
 ];
 
 export interface TutorialNodeIds {

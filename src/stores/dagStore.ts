@@ -15,7 +15,7 @@ interface DagState {
   addNode: (title: string | null, parentId: string | null, projectId: string) => Promise<Node>;
   updateNodeContent: (id: string, content: string) => Promise<void>;
   renameNode: (id: string, title: string) => Promise<void>;
-  deleteNode: (id: string) => Promise<void>;
+  deleteNode: (id: string, skipUndoSnapshot?: boolean) => Promise<void>;
   deleteSubtree: (id: string) => Promise<void>;
   pushUndoSnapshot: (messages?: Message[]) => void;
   getNodesByProject: (projectId: string) => Node[];
@@ -78,9 +78,9 @@ export const useDagStore = create<DagState>((set, get) => ({
     set(s => ({ nodes: s.nodes.map(n => (n.id === id ? { ...n, title, updatedAt } : n)) }));
   },
 
-  deleteNode: async (id) => {
+  deleteNode: async (id, skipUndoSnapshot = false) => {
     const { data: msgs } = await supabase.from('messages').select('*').eq('nodeId', id);
-    get().pushUndoSnapshot(msgs ?? []);
+    if (!skipUndoSnapshot) get().pushUndoSnapshot(msgs ?? []);
     await supabase.from('nodes').delete().eq('id', id);
     set(s => ({ nodes: s.nodes.filter(n => n.id !== id) }));
   },
@@ -254,7 +254,7 @@ export const useDagStore = create<DagState>((set, get) => ({
     const toDelete = nodes.filter(n => !prevMap.has(n.id));
     const toUpdate = previous.filter(n => {
       const curr = currMap.get(n.id);
-      return curr && curr.order !== n.order;
+      return curr && (curr.order !== n.order || curr.parentId !== n.parentId);
     });
 
     set(s => ({ undoStack: s.undoStack.slice(0, -1), nodes: previous }));
@@ -262,7 +262,7 @@ export const useDagStore = create<DagState>((set, get) => ({
     await Promise.all([
       ...toInsert.map(n => supabase.from('nodes').upsert(n)),
       ...toDelete.map(n => supabase.from('nodes').delete().eq('id', n.id)),
-      ...toUpdate.map(n => supabase.from('nodes').update({ order: n.order }).eq('id', n.id)),
+      ...toUpdate.map(n => supabase.from('nodes').update({ order: n.order, parentId: n.parentId }).eq('id', n.id)),
       ...(savedMessages.length > 0 ? [supabase.from('messages').upsert(savedMessages)] : []),
     ]);
   },
