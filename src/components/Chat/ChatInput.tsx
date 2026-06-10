@@ -1,6 +1,5 @@
 import { useState, forwardRef } from 'react';
-import { Crosshair, ArrowUp } from 'lucide-react';
-import type { GripLevel } from '../../types';
+import { ArrowUp } from 'lucide-react';
 import { Tooltip } from '../Tooltip';
 
 interface Props {
@@ -9,22 +8,11 @@ interface Props {
   onSend: () => void;
   onStop: () => void;
   isGenerating: boolean;
-  gripLevel: GripLevel;
-  onGripChange: (level: GripLevel) => void;
   guidanceEnabled?: boolean;
   onGuidanceChange?: (enabled: boolean) => void;
   onInputFocus?: () => void;
   onInputBlur?: () => void;
 }
-
-const GRIP_LEVELS: GripLevel[] = ['off', 'low', 'mid', 'high'];
-
-const GRIP_TOOLTIPS: Record<GripLevel, string> = {
-  off: 'Only the current thread and selected lineage context are used. No semantic search is added.',
-  low: 'Broad search. Pulls up to 15 loosely related nodes into the context suggestions.',
-  mid: 'Balanced search. Pulls up to 8 related nodes with a moderate similarity threshold.',
-  high: 'Strict search. Pulls up to 3 highly similar nodes, keeping context narrow.',
-};
 
 const StopIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -40,7 +28,7 @@ const Spinner = () => (
 );
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
-  ({ value, onChange, onSend, onStop, isGenerating, gripLevel, onGripChange, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
+  ({ value, onChange, onSend, onStop, isGenerating, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
     const [focused, setFocused] = useState(false);
     const canSend = !isGenerating && !!value.trim();
 
@@ -81,56 +69,25 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
 
         {/* Bottom bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px 2px 14px' }}>
-          {/* Grip selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <Tooltip
-              placement="top"
-              width={185}
-              content="Grip controls how aggressively Graphi searches other nodes for related context before you send."
+          {/* Guidance toggle */}
+          <Tooltip
+            placement="top"
+            width={220}
+            content={guidanceEnabled ? 'Guidance is on. Context search and branch/drift hints are enabled.' : 'Guidance is off. No context search or hints.'}
+          >
+            <button
+              onClick={() => onGuidanceChange?.(!guidanceEnabled)}
+              style={{
+                padding: '4px 11px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer',
+                background: guidanceEnabled ? '#111827' : 'transparent',
+                color: guidanceEnabled ? '#fff' : '#9CA3AF',
+                fontWeight: guidanceEnabled ? 500 : 400,
+                transition: 'all 0.1s', fontFamily: 'inherit',
+              }}
             >
-              <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Crosshair size={13} strokeWidth={2} color="#9CA3AF" />
-                Grip
-              </span>
-            </Tooltip>
-            {GRIP_LEVELS.map(level => (
-              <Tooltip key={level} placement="top" width={185} content={GRIP_TOOLTIPS[level]}>
-                <button
-                  onClick={() => onGripChange(level)}
-                  style={{
-                    padding: '4px 9px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer',
-                    background: gripLevel === level ? '#111827' : 'transparent',
-                    color: gripLevel === level ? '#fff' : '#9CA3AF',
-                    fontWeight: gripLevel === level ? 500 : 400,
-                    transition: 'all 0.1s', textTransform: 'capitalize', fontFamily: 'inherit',
-                  }}
-                >
-                  {level}
-                </button>
-              </Tooltip>
-            ))}
-
-            {/* Guidance toggle */}
-            <Tooltip
-              placement="top"
-              width={185}
-              content={guidanceEnabled ? 'Guidance is on. Branch/drift hints will appear.' : 'Guidance is off. No branch/drift hints.'}
-            >
-              <button
-                onClick={() => onGuidanceChange?.(!guidanceEnabled)}
-                style={{
-                  padding: '4px 9px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer',
-                  background: guidanceEnabled ? '#111827' : 'transparent',
-                  color: guidanceEnabled ? '#fff' : '#9CA3AF',
-                  fontWeight: guidanceEnabled ? 500 : 400,
-                  transition: 'all 0.1s', fontFamily: 'inherit',
-                  marginLeft: '4px',
-                }}
-              >
-                {guidanceEnabled ? 'Guidance' : 'No guidance'}
-              </button>
-            </Tooltip>
-          </div>
+              {guidanceEnabled ? 'Guidance on' : 'Guidance off'}
+            </button>
+          </Tooltip>
 
           {/* Send / Stop */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
