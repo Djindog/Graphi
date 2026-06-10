@@ -30,6 +30,7 @@ export function ConfirmDialog({
       zIndex: 10000,
     }} onClick={onCancel}>
       <div
+        data-tutorial="confirm-dialog"
         style={{
           backgroundColor: '#fff',
           borderRadius: 12,

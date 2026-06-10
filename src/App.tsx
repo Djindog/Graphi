@@ -12,6 +12,8 @@ import { ChatPane } from './components/Chat/ChatPane';
 import { ToastContainer } from './components/Toast';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { TutorialPage } from './components/Tutorial/TutorialPage';
+import { TutorialOverlay } from './components/Tutorial/TutorialOverlay';
+import { useTutorialStore, TUTORIAL_PROJECT_LS_KEY } from './stores/tutorialStore';
 import type { ToastMessage } from './components/Toast';
 import type { Project } from './types';
 import type Groq from 'groq-sdk';
@@ -29,7 +31,8 @@ function getSidebarWidth(collapsed: boolean) {
 }
 
 function clampChatWidth(w: number, sidebarCollapsed: boolean) {
-  const max = Math.min(MAX_CHAT_WIDTH, Math.floor((window.innerWidth - getSidebarWidth(sidebarCollapsed)) / 2));
+  const available = window.innerWidth - getSidebarWidth(sidebarCollapsed) - 8;
+  const max = Math.floor(available * 2 / 3);
   return Math.max(MIN_CHAT_WIDTH, Math.min(max, w));
 }
 
@@ -79,12 +82,35 @@ export default function App() {
   const { setFromSupabase, subscribeToProjectNodes, undo } = useDagStore();
   const storeNodes = useDagStore(s => s.nodes);
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
+  const isTutorialActive = useTutorialStore(s => s.isActive);
+  const tutorialProjectId = useTutorialStore(s => s.nodeIds.projectId);
 
   useEffect(() => {
     if (canvasWidth === null) {
       setChatPaneWidth(w => clampChatWidth(w, sidebarCollapsed));
     }
   }, [sidebarCollapsed, canvasWidth]);
+
+  // Tutorial lifecycle: clear project state when tutorial starts; refresh when it ends
+  const prevTutorialActive = useRef(false);
+  useEffect(() => {
+    if (!prevTutorialActive.current && isTutorialActive) {
+      // Tutorial just became active: isolate from any existing project
+      setSidebarCollapsed(false);
+      setActiveProject(null);
+      setFromSupabase([]);
+      void setCurrentNode(null);
+    }
+    if (prevTutorialActive.current && !isTutorialActive && user) {
+      // Tutorial just ended: refresh project list
+      setActiveProject(null);
+      setFromSupabase([]);
+      loadAllProjects(user.id);
+    }
+    prevTutorialActive.current = isTutorialActive;
+  // loadAllProjects is stable (useCallback-free module fn) — safe to omit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTutorialActive, user]);
 
   // Ctrl+Z for undo
   useEffect(() => {
@@ -144,7 +170,24 @@ export default function App() {
     const { data, error } = await supabase
       .from('projects').select('*').eq('userId', userId).order('createdAt', { ascending: false });
     if (error) { console.error(error); return; }
-    if (data) setProjects(data as Project[]);
+    if (!data) return;
+
+    // Clean up any orphaned tutorial project from a crashed/interrupted session
+    const orphanId = localStorage.getItem(TUTORIAL_PROJECT_LS_KEY);
+    if (orphanId && !useTutorialStore.getState().isActive) {
+      await useTutorialStore.getState().cleanupProject(orphanId);
+      const filtered = data.filter(p => p.id !== orphanId);
+      setProjects(filtered as Project[]);
+      if (filtered.length === 0 && !localStorage.getItem('graphi_tutorial_done')) {
+        useTutorialStore.getState().start();
+      }
+      return;
+    }
+
+    setProjects(data as Project[]);
+    if (data.length === 0 && !localStorage.getItem('graphi_tutorial_done')) {
+      useTutorialStore.getState().start();
+    }
   };
 
   const handleSaveKey = async (key: string) => {
@@ -171,6 +214,12 @@ export default function App() {
     setProjects(prev => [project, ...prev.filter(p => p.id !== project.id)]);
     handleSelectProject(project);
     addToast(`"${project.name}" created`);
+    const tutStore = useTutorialStore.getState();
+    if (tutStore.isActive) {
+      localStorage.setItem(TUTORIAL_PROJECT_LS_KEY, project.id);
+      tutStore.setNodeIds({ projectId: project.id, rootNodeId: project.rootNodeId });
+      tutStore.advanceIfOnStep('name-project');
+    }
   };
 
   const handleProjectDeleted = (projectId: string) => {
@@ -218,10 +267,11 @@ export default function App() {
           setChatPaneHidden(false);
         }
       } else {
-        // Dragging left: shrink Canvas, expand ChatPane (capped at MAX_CHAT_WIDTH)
-        finalChatW = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, newChatW));
+        // Dragging left: shrink Canvas, expand ChatPane up to 2/3 of available, then snap to full
+        const maxBeforeSnap = Math.floor(dragState.current.maxW * 2 / 3);
+        finalChatW = Math.max(MIN_CHAT_WIDTH, Math.min(maxBeforeSnap, newChatW));
         const implicitCanvasW = dragState.current.maxW - finalChatW;
-        if (delta > CANVAS_SNAP_THRESHOLD) {
+        if (newChatW > maxBeforeSnap) {
           hideCanvas = true;
           setCanvasWidth(0);
         } else {
@@ -371,6 +421,8 @@ export default function App() {
         onError={msg => addToast(msg, 'error')}
         onOpenSettings={() => setShowSettingsKeyModal(true)}
         onOpenTutorial={() => setShowTutorial(true)}
+        isTutorialActive={isTutorialActive}
+        tutorialProjectId={tutorialProjectId}
       />
 
       {/* Left grab handle — only when canvas hidden */}
@@ -382,7 +434,7 @@ export default function App() {
           onDoubleClick={() => { revealCanvas(); setGrabTooltip(false); if (grabTooltipTimer.current) clearTimeout(grabTooltipTimer.current); }}
           style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
         >
-          <div style={{ width: grabHovered ? 3 : 1, background: grabHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          <div style={{ width: grabHovered ? 4 : 2, background: grabHovered ? '#6B7280' : '#D1D5DB', transition: 'width 0.15s ease, background 0.15s ease', borderRadius: 2, boxShadow: grabHovered ? '0 0 8px rgba(0,0,0,0.15)' : 'none' }} />
           {grabTooltip && (
             <div style={{
               position: 'absolute', top: '50%', left: 'calc(100% + 10px)', transform: 'translateY(-50%)',
@@ -430,7 +482,7 @@ export default function App() {
           onDoubleClick={() => { setCanvasWidth(0); setDividerTooltip(false); if (dividerTooltipTimer.current) clearTimeout(dividerTooltipTimer.current); }}
           style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
         >
-          <div style={{ width: dividerHovered ? 3 : 1, background: dividerHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          <div style={{ width: dividerHovered ? 4 : 2, background: dividerHovered ? '#6B7280' : '#D1D5DB', transition: 'width 0.15s ease, background 0.15s ease', borderRadius: 2, boxShadow: dividerHovered ? '0 0 8px rgba(0,0,0,0.15)' : 'none' }} />
           {dividerTooltip && (
             <div style={{
               position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)',
@@ -461,7 +513,7 @@ export default function App() {
           onDoubleClick={() => { setChatPaneHidden(false); setChatPaneWidth(650); setChatPaneGrabTooltip(false); if (chatPaneGrabTooltipTimer.current) clearTimeout(chatPaneGrabTooltipTimer.current); }}
           style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
         >
-          <div style={{ width: chatPaneGrabHovered ? 3 : 1, background: chatPaneGrabHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          <div style={{ width: chatPaneGrabHovered ? 4 : 2, background: chatPaneGrabHovered ? '#6B7280' : '#D1D5DB', transition: 'width 0.15s ease, background 0.15s ease', borderRadius: 2, boxShadow: chatPaneGrabHovered ? '0 0 8px rgba(0,0,0,0.15)' : 'none' }} />
           {chatPaneGrabTooltip && (
             <div style={{
               position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)',
@@ -497,16 +549,35 @@ export default function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {showKeyModal && (
-        <ApiKeyModal onSave={handleSaveKey} />
+        <ApiKeyModal
+          onSave={handleSaveKey}
+          referenceDetectionEnabled={useChatStore.getState().referenceDetectionEnabled}
+          onReferenceDetectionChange={(enabled) => useChatStore.getState().setReferenceDetectionEnabled(enabled)}
+          driftDetectionEnabled={useChatStore.getState().driftDetectionEnabled}
+          onDriftDetectionChange={(enabled) => useChatStore.getState().setDriftDetectionEnabled(enabled)}
+        />
       )}
 
-      {showTutorial && <TutorialPage onClose={() => setShowTutorial(false)} />}
+      {showTutorial && (
+        <TutorialPage
+          onClose={() => setShowTutorial(false)}
+          onStartInteractive={() => {
+            setShowTutorial(false);
+            useTutorialStore.getState().start();
+          }}
+        />
+      )}
+      <TutorialOverlay />
 
       {showSettingsKeyModal && (
         <ApiKeyModal
           onSave={handleSaveKey}
           onClose={() => setShowSettingsKeyModal(false)}
           existingKey={currentGroqKey}
+          referenceDetectionEnabled={useChatStore.getState().referenceDetectionEnabled}
+          onReferenceDetectionChange={(enabled) => useChatStore.getState().setReferenceDetectionEnabled(enabled)}
+          driftDetectionEnabled={useChatStore.getState().driftDetectionEnabled}
+          onDriftDetectionChange={(enabled) => useChatStore.getState().setDriftDetectionEnabled(enabled)}
         />
       )}
     </div>

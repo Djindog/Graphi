@@ -3,6 +3,7 @@ import { GitBranch, CircleDot, MousePointerClick } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { Tooltip } from '../Tooltip';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
@@ -16,7 +17,22 @@ import { ContextSummary } from './ContextSummary';
 import type { Message } from '../../types';
 import type Groq from 'groq-sdk';
 
-const DEBOUNCE_MS = 2000;
+const DEBOUNCE_MS = 1000;
+
+const TUTORIAL_WHAT_IS_GRAPHI =
+`Graphi is a tree-based thinking tool for exploratory conversations.
+
+Unlike a regular chat that flows in one long thread, Graphi lets you **branch** off at any point — creating separate conversation threads that share a common ancestor. Each **node** in the tree holds its own chat history.
+
+**Key concepts:**
+- **Root node** — your starting point. Every project begins here.
+- **Branches** — child nodes that let you explore a topic from a different angle without losing your original thread.
+- **Context** — you decide which nodes the AI can see when generating a response, so you can mix and match history across branches.
+
+This structure makes Graphi ideal for research, writing, brainstorming, and any task where you want to explore multiple directions without cluttering a single chat.
+
+The tutorial will now walk you through creating branches, managing context, and navigating your tree!`;
+
 const CHAT_SYSTEM_PROMPT =
   'You are a helpful thinking partner. Answer the latest user message, using context only as supporting material when it is relevant. Do not infer a task from context alone. If the latest user message is unclear, nonsensical, random characters, or has no interpretable request, say you cannot tell what they want and ask them to clarify.';
 
@@ -42,6 +58,8 @@ function isLikelyLowIntentInput(text: string): boolean {
 
 export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { width?: number; groqClient: InstanceType<typeof Groq> | null; canvasHidden?: boolean }) {
   const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const prevNodeIdRef = useRef<string | null>(null);
 
   // When dev mode is ON: use lowered threshold; OFF: use production threshold (15)
   const REMINDER_THRESHOLD = devMode
@@ -56,7 +74,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
     branchReminderDismissed,
     setBranchReminderDismissed,
-    guidanceEnabled, setGuidanceEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
+    guidanceEnabled, setGuidanceEnabled, referenceDetectionEnabled, driftDetectionEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
     devShowGuidancePill, setDevShowGuidancePill,
     setHoveredSuggestedNodeId,
   } = useChatStore();
@@ -73,6 +91,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const messageListRef = useRef<{ scrollToBottom: () => void }>(null);
   const [contextH, setContextH] = useState(0);
   const [sidePopup, setSidePopup] = useState<{ type: 'left' | 'right' | null; y: number; isEdge: boolean }>({ type: null, y: 0, isEdge: false });
+  const [stage0InProgress, setStage0InProgress] = useState(false);
 
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
@@ -81,9 +100,10 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const messageCount = messages.length;
   const showRemedy2 = guidanceEnabled && messageCount >= REMINDER_THRESHOLD && !driftDetected && !branchReminderDismissed;
   const showRemedy3 = guidanceEnabled && driftDetected && suggestedNodeId && suggestedNodeId !== currentNodeId;
-  const showGuidancePill = showRemedy2 || showRemedy3 || devShowGuidancePill;
-  const noGuidanceNeeded = devShowGuidancePill && !showRemedy2 && !showRemedy3;
-  const pillType = showRemedy3 ? 'drift' : noGuidanceNeeded ? 'noGuidance' : 'length' as const;
+  const showRemedy4 = guidanceEnabled && driftDetected && !suggestedNodeId && !branchReminderDismissed;
+  const showGuidancePill = showRemedy2 || showRemedy3 || showRemedy4 || devShowGuidancePill;
+  const noGuidanceNeeded = devShowGuidancePill && !showRemedy2 && !showRemedy3 && !showRemedy4;
+  const pillType = showRemedy3 ? 'drift' : showRemedy4 ? 'driftNoNode' : noGuidanceNeeded ? 'noGuidance' : 'length' as const;
   const suggestedNode = suggestedNodeId ? nodes.find(n => n.id === suggestedNodeId) : null;
 
   // Listen for localStorage changes (e.g., from settings modal)
@@ -278,6 +298,15 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   }, [currentNodeId, getAllAncestors, initContext]);
 
   useEffect(() => {
+    if (currentNodeId && prevNodeIdRef.current && currentNodeId !== prevNodeIdRef.current) {
+      setIsLoadingMessages(true);
+      const timer = setTimeout(() => setIsLoadingMessages(false), 200);
+      return () => clearTimeout(timer);
+    }
+    prevNodeIdRef.current = currentNodeId;
+  }, [currentNodeId]);
+
+  useEffect(() => {
     if (!isGenerating && inputRef.current) {
       inputRef.current.focus();
     }
@@ -290,12 +319,13 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     if (!projectId) return;
     const projectNodes = getNodesByProject(projectId);
 
+    setStage0InProgress(true);
     try {
-      // Only check for drift if thread has enough messages (respects intentional branching)
-      // For new threads (< 4 messages), only detect references to save tokens
       const hasEnoughMessages = messages.length >= 4;
+      const shouldDetectDrift = driftDetectionEnabled && hasEnoughMessages;
+      const shouldDetectReferences = referenceDetectionEnabled;
 
-      if (hasEnoughMessages && groqClient) {
+      if (shouldDetectDrift && groqClient) {
         // Full Stage 0: detect both references and drift
         const { referencedNodeIds, driftDetected, suggestedNodeId } = await detectReferencesAndDrift(
           message,
@@ -308,13 +338,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
         setReferenced(referencedNodeIds);
         setDriftDetected(driftDetected);
         setSuggestedNodeId(suggestedNodeId);
-      } else {
-        // Light Stage 0: only detect references (skip drift check for new threads)
-        const referencedNodeIds = groqClient
-          ? await detectReferences(message, projectNodes, groqClient)
-          : [];
+      } else if (shouldDetectReferences && groqClient) {
+        // Light Stage 0: only detect references (skip drift check)
+        const referencedNodeIds = await detectReferences(message, projectNodes, groqClient);
 
         setReferenced(referencedNodeIds);
+        setDriftDetected(false);
+        setSuggestedNodeId(null);
+      } else {
+        // No detection enabled
+        setReferenced([]);
         setDriftDetected(false);
         setSuggestedNodeId(null);
       }
@@ -327,6 +360,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       setDriftDetected(false);
       setSuggestedNodeId(null);
       setRecommended([]);
+    } finally {
+      setStage0InProgress(false);
     }
   }, [currentNodeId, currentNode, messages.length, getNodesByProject, setReferenced, setRecommended, setDriftDetected, setSuggestedNodeId, clearContext, groqClient]);
 
@@ -367,9 +402,66 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentNodeId, isGenerating, groqClient]);
 
+  const handleTutorialSend = async (userMessage: string) => {
+    if (!currentNodeId) return;
+    setIsGenerating(true);
+
+    const userMsg: Message = {
+      id: uuidv4(), nodeId: currentNodeId, role: 'user',
+      content: userMessage, createdAt: new Date().toISOString(),
+    };
+    addMessage(userMsg);
+
+    const assistantMsgId = uuidv4();
+    addMessage({ id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: '', createdAt: new Date().toISOString() });
+
+    // Simulate streaming: reveal ~5 chars every 15 ms
+    const response = TUTORIAL_WHAT_IS_GRAPHI;
+    const CHUNK = 5;
+    for (let i = CHUNK; i <= response.length; i += CHUNK) {
+      await new Promise(r => setTimeout(r, 15));
+      const partial = response.slice(0, i);
+      useChatStore.setState(s => ({
+        messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: partial } : m),
+      }));
+    }
+    useChatStore.setState(s => ({
+      messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: response } : m),
+    }));
+
+    await supabase.from('messages').insert([
+      { id: userMsg.id, nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: userMsg.createdAt },
+      { id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: response, createdAt: new Date().toISOString() },
+    ]);
+    await renameNode(currentNodeId, 'What is Graphi?');
+
+    setIsGenerating(false);
+    partialClearContext();
+  };
+
   const handleSend = async () => {
-    if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
+    if (!currentInput.trim() || !currentNodeId || isGenerating) return;
     const userMessage = currentInput.trim();
+
+    // Tutorial input validation
+    const tutStore = useTutorialStore.getState();
+    if (tutStore.isActive) {
+      const tutStep = tutStore.currentStepId();
+      if (tutStep === 'type-question') {
+        if (userMessage !== 'What is Graphi?') {
+          tutStore.setInputError('Please type exactly: "What is Graphi?"');
+          return;
+        }
+        tutStore.setInputError(null);
+        tutStore.advance();
+        setCurrentInput('');
+        messageListRef.current?.scrollToBottom();
+        handleTutorialSend(userMessage);
+        return;
+      }
+    }
+
+    if (!groqClient) return;
 
     // Force Stage 0 to run immediately (clear debounce and execute)
     if (debounceRef.current) {
@@ -525,7 +617,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             <MousePointerClick size={32} strokeWidth={1.5} />
           </div>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Select a node</p>
-          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Click any node on the canvas to open its thread.</p>
+          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Click any node on the canvas to open it.</p>
         </div>
       </div>
     );
@@ -555,8 +647,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
           <span
             style={{
               fontSize: '0.875rem',
-              color: messages.length >= REMINDER_THRESHOLD ? 'rgb(78, 70, 0)' : 'rgb(107, 114, 128)',
-              backgroundColor: messages.length >= REMINDER_THRESHOLD ? 'rgb(255, 251, 235)' : 'transparent',
+              color: messages.length >= REMINDER_THRESHOLD ? 'rgb(120, 53, 15)' : 'rgb(107, 114, 128)',
+              backgroundColor: messages.length >= REMINDER_THRESHOLD ? 'rgb(254, 243, 199)' : 'transparent',
               padding: messages.length >= REMINDER_THRESHOLD ? '0.25rem 0.75rem' : '0',
               borderRadius: '0.375rem',
               fontWeight: messages.length >= REMINDER_THRESHOLD ? 500 : 400,
@@ -568,14 +660,14 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             }}
             onMouseEnter={(e) => {
               if (messages.length >= REMINDER_THRESHOLD) {
-                e.currentTarget.style.backgroundColor = 'rgb(254, 243, 199)';
+                e.currentTarget.style.backgroundColor = 'rgb(253, 230, 138)';
                 const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                 if (tooltip) tooltip.style.display = 'block';
               }
             }}
             onMouseLeave={(e) => {
               if (messages.length >= REMINDER_THRESHOLD) {
-                e.currentTarget.style.backgroundColor = 'rgb(255, 251, 235)';
+                e.currentTarget.style.backgroundColor = 'rgb(254, 243, 199)';
                 const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                 if (tooltip) tooltip.style.display = 'none';
               }
@@ -643,6 +735,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               ref={messageListRef}
               messages={messages}
               isGenerating={isGenerating}
+              isLoadingMessages={isLoadingMessages}
               contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
               scrollContainerRef={messageScrollRef}
               onEditMessage={handleEditSend}
@@ -702,6 +795,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               onStop={handleStop}
               isGenerating={isGenerating}
               guidanceEnabled={guidanceEnabled}
+              stage0InProgress={stage0InProgress}
               onGuidanceChange={(enabled) => {
                 setGuidanceEnabled(enabled);
                 if (!enabled) {
@@ -721,7 +815,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   onClick={() => handleSideButtonClick('left')}
                   style={{
                     width: 34, height: 34, borderRadius: '50%',
-                    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+                    border: '1px solid #E5E7EB', background: sidePopup.isEdge ? '#F0F9FF' : '#fff', color: sidePopup.isEdge ? '#2563EB' : '#374151',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.15s',
                     boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
@@ -733,7 +827,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.borderColor = '#E5E7EB';
-                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.color = sidePopup.isEdge ? '#2563EB' : '#374151';
                     e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.12)';
                   }}
                 >
@@ -751,7 +845,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   onClick={() => handleSideButtonClick('right')}
                   style={{
                     width: 34, height: 34, borderRadius: '50%',
-                    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+                    border: '1px solid #E5E7EB', background: sidePopup.isEdge ? '#F0F9FF' : '#fff', color: sidePopup.isEdge ? '#2563EB' : '#374151',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.15s',
                     boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
@@ -763,7 +857,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.borderColor = '#E5E7EB';
-                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.color = sidePopup.isEdge ? '#2563EB' : '#374151';
                     e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.12)';
                   }}
                 >

@@ -9,6 +9,7 @@ interface Props {
   onStop: () => void;
   isGenerating: boolean;
   guidanceEnabled?: boolean;
+  stage0InProgress?: boolean;
   onGuidanceChange?: (enabled: boolean) => void;
   onInputFocus?: () => void;
   onInputBlur?: () => void;
@@ -28,7 +29,7 @@ const Spinner = () => (
 );
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
-  ({ value, onChange, onSend, onStop, isGenerating, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
+  ({ value, onChange, onSend, onStop, isGenerating, guidanceEnabled = true, stage0InProgress = false, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
     const [focused, setFocused] = useState(false);
     const canSend = !isGenerating && !!value.trim();
 
@@ -37,17 +38,20 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
     };
 
     return (
-    <div style={{ padding: '4px 12px 16px', background: 'transparent' }}>
+    <div data-tutorial="chat-input-area" style={{ padding: '4px 12px 16px', background: 'transparent' }}>
       {/* Unified composer container — floating card */}
       <div style={{
         border: `1.5px solid ${focused ? '#2563EB' : '#E5E7EB'}`,
         borderRadius: 14,
         background: '#fff',
-        boxShadow: focused
+        boxShadow: stage0InProgress && guidanceEnabled
+          ? '0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7)'
+          : focused
           ? '0 0 0 3px #EFF6FF, 0 4px 20px rgba(0,0,0,0.10)'
           : '0 2px 12px rgba(17,24,39,0.09), 0 1px 3px rgba(17,24,39,0.05)',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         padding: '4px 4px 4px 0',
+        animation: stage0InProgress && guidanceEnabled ? 'rotate-glow 3s linear infinite' : 'none',
       }}>
         <textarea
           ref={ref}
@@ -84,10 +88,32 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
                 fontWeight: guidanceEnabled ? 500 : 400,
                 transition: 'all 0.1s', fontFamily: 'inherit',
               }}
+              onFocus={e => { (e.currentTarget as HTMLButtonElement).style.outline = '2px solid #2563EB'; (e.currentTarget as HTMLButtonElement).style.outlineOffset = '2px'; }}
+              onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
             >
               {guidanceEnabled ? 'Guidance on' : 'Guidance off'}
             </button>
           </Tooltip>
+
+          <style>{`
+            @keyframes rotate-glow {
+              0% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 6px 0 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              25% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 0 6px 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              50% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), -6px 0 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              75% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 0 -6px 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              100% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 6px 0 14px 2px rgba(251, 191, 36, 0.3);
+              }
+            }
+          `}</style>
 
           {/* Send / Stop */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -103,6 +129,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#111827'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#E5E7EB'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
+                onFocus={e => { (e.currentTarget as HTMLButtonElement).style.outline = '2px solid #2563EB'; (e.currentTarget as HTMLButtonElement).style.outlineOffset = '2px'; }}
+                onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
               >
                 <StopIcon />
               </button>
@@ -119,6 +147,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0, transition: 'background 0.15s',
               }}
+              onFocus={e => { if (canSend) { (e.currentTarget as HTMLButtonElement).style.outline = '2px solid #2563EB'; (e.currentTarget as HTMLButtonElement).style.outlineOffset = '2px'; } }}
+              onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
             >
               {isGenerating ? <Spinner /> : <ArrowUp size={17} strokeWidth={2.4} />}
             </button>

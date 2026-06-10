@@ -3,8 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, Trash2, Settings, HelpCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useDagStore } from '../../stores/dagStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { NewProjectModal } from '../NewProjectModal';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { Tooltip } from '../Tooltip';
 import logoSvg from '../../assets/logo.svg';
 import type { Project } from '../../types';
 
@@ -20,12 +22,15 @@ interface SidebarProps {
   onError: (msg: string) => void;
   onOpenSettings: () => void;
   onOpenTutorial: () => void;
+  isTutorialActive?: boolean;
+  tutorialProjectId?: string | null;
 }
 
 
 export function Sidebar({
   collapsed, onToggle, activeProjectId, projects,
   onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onError, onOpenSettings, onOpenTutorial,
+  isTutorialActive = false, tutorialProjectId = null,
 }: SidebarProps) {
   const [showModal, setShowModal] = useState(false);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
@@ -131,23 +136,28 @@ export function Sidebar({
     setProjectMenu({ id: projectId, x: sidebarRight + 12, y: rect.top });
   };
 
-  const sortedProjects = [
-    ...projects.filter(p => pinnedProjects.has(p.id)),
-    ...projects.filter(p => !pinnedProjects.has(p.id)),
-  ];
+  // During tutorial: only show the tutorial project (hides user's real projects)
+  const visibleProjects = isTutorialActive
+    ? projects.filter(p => p.id === tutorialProjectId)
+    : [
+        ...projects.filter(p => pinnedProjects.has(p.id)),
+        ...projects.filter(p => !pinnedProjects.has(p.id)),
+      ];
+  const sortedProjects = visibleProjects;
 
   if (collapsed) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 52, background: '#fff', borderRight: '1px solid #E5E7EB', height: '100%', padding: '14px 0', gap: 10, flexShrink: 0 }}>
-        <button
-          onClick={onToggle}
-          title="Expand"
-          style={{ color: '#6B7280', width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
-        >
-          <PanelLeft size={17} strokeWidth={1.9} />
-        </button>
+        <Tooltip placement="right" width={90} content="Expand sidebar">
+          <button
+            onClick={onToggle}
+            style={{ color: '#6B7280', width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
+          >
+            <PanelLeft size={17} strokeWidth={1.9} />
+          </button>
+        </Tooltip>
       </div>
     );
   }
@@ -161,21 +171,25 @@ export function Sidebar({
             <img src={logoSvg} alt="Graphi" style={{ width: 32, height: 32, flexShrink: 0 }} />
             <span style={{ fontSize: 16, fontWeight: 600, color: '#111827', letterSpacing: '-0.3px' }}>Graphi</span>
           </div>
-          <button
-            onClick={onToggle}
-            title="Collapse"
-            style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
-          >
-            <PanelLeftClose size={16} strokeWidth={1.9} />
-          </button>
+          {!isTutorialActive && (
+            <Tooltip placement="bottom" width={90} content="Collapse sidebar">
+              <button
+                onClick={onToggle}
+                style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
+              >
+                <PanelLeftClose size={16} strokeWidth={1.9} />
+              </button>
+            </Tooltip>
+          )}
         </div>
 
         {/* New project */}
         <div style={{ padding: '0 12px 12px' }}>
           <button
-            onClick={() => setShowModal(true)}
+            data-tutorial="new-project-btn"
+            onClick={() => { setShowModal(true); useTutorialStore.getState().advanceIfOnStep('create-project'); }}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 10px', fontSize: 13, fontWeight: 500, color: '#374151', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit' }}
             onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#2563EB'; b.style.color = '#1D4ED8'; b.style.background = '#EFF6FF'; }}
             onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#E5E7EB'; b.style.color = '#374151'; b.style.background = '#F9FAFB'; }}
@@ -256,36 +270,38 @@ export function Sidebar({
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop: '1px solid #F3F4F6', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            style={{ color: '#9CA3AF', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', transition: 'color 0.15s' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
-          >
-            Sign out
-          </button>
-          <div style={{ display: 'flex', gap: 4 }}>
+        {!isTutorialActive && (
+          <div style={{ borderTop: '1px solid #F3F4F6', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <button
-              onClick={onOpenTutorial}
-              title="Tutorial"
-              style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              onClick={() => supabase.auth.signOut()}
+              style={{ color: '#9CA3AF', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', transition: 'color 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
             >
-              <HelpCircle size={15} />
+              Sign out
             </button>
-            <button
-              onClick={onOpenSettings}
-              title="API key settings"
-              style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-            >
-              <Settings size={15} />
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button
+                onClick={onOpenTutorial}
+                title="Tutorial"
+                style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                <HelpCircle size={15} />
+              </button>
+              <button
+                onClick={onOpenSettings}
+                title="API key settings"
+                style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                <Settings size={15} />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Project context menu overlay */}

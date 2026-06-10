@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Tooltip } from '../Tooltip';
 import type { Node } from '../../types';
 
 
@@ -24,36 +25,37 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
     if (!node) return null;
     const active = isActive(id);
     return (
-      <button
-        onClick={() => onToggle(id)}
-        title={active ? 'Click to deactivate' : 'Click to reactivate'}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7,
-          padding: '7px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 13,
-          maxWidth: 200, overflow: 'hidden',
-          background: active ? '#EFF6FF' : '#fff',
-          border: `1px solid ${active ? '#2563EB' : '#E5E7EB'}`,
-          color: active ? '#1D4ED8' : '#6B7280',
-          fontWeight: active ? 500 : 400,
-          transition: 'all 0.12s',
-          fontFamily: 'inherit',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{
-          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-          background: active ? '#2563EB' : 'transparent',
-          border: active ? 'none' : '1.5px solid #D1D5DB',
-        }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {node.title || 'Untitled'}
-        </span>
-      </button>
+      <Tooltip placement="top" width={120} content={active ? 'Click to exclude' : 'Click to include'}>
+        <button
+          onClick={() => onToggle(id)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '7px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 13,
+            maxWidth: 200, overflow: 'hidden',
+            background: active ? '#EFF6FF' : '#fff',
+            border: `1px solid ${active ? '#2563EB' : '#E5E7EB'}`,
+            color: active ? '#1D4ED8' : '#6B7280',
+            fontWeight: active ? 500 : 400,
+            transition: 'all 0.12s',
+            fontFamily: 'inherit',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+            background: active ? '#2563EB' : 'transparent',
+            border: active ? 'none' : '1.5px solid #D1D5DB',
+          }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {node.title || 'Untitled'}
+          </span>
+        </button>
+      </Tooltip>
     );
   };
 
   return (
-    <div style={{
+    <div data-tutorial="context-bar" style={{
       padding: '12px 16px 10px',
       background: '#fff',
       borderRadius: '0 0 14px 14px',
@@ -63,7 +65,7 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
       borderBottom: '1px solid rgba(0,0,0,0.06)',
     }}>
       <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', margin: '0 0 9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Context
+        Context <span style={{ fontSize: 10, fontWeight: 500, color: '#D1D5DB' }}>({activeIds.length}/{allIds.length})</span>
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
         {allIds.map(id => <Chip key={id} id={id} />)}

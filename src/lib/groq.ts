@@ -95,25 +95,23 @@ export async function detectReferencesAndDrift(
           role: 'system',
           content: `You are a context analyzer. Analyze the user message and current node context.
 
-IMPORTANT: Default to staying in the current node unless there is CLEAR, DEFINITIVE topic divergence.
-
+STRICT RULES:
 1. Extract node IDs explicitly referenced or mentioned in the message.
-2. Determine if the message represents a SUBSTANTIAL topic shift AWAY from the current node.
-   - Elaborating on ideas, asking follow-ups, providing details, or building on current topic = NO drift
-   - Shifting to a completely different subject = drift
-   - Only flag drift if the topic change is unmistakable and intentional
+2. Detect ONLY MAJOR, UNAMBIGUOUS topic shifts as drift.
+   - NOT drift: elaborating, asking follow-ups, providing examples, exploring angles, building on current topic
+   - IS drift: user switches to a completely different subject/domain (e.g., HCI context → question about Barack Obama)
+   - Default: assume continuation unless shift is unmistakable and intentional
 
-3. Only suggest a move if drift is detected AND a more appropriate node exists.
+3. suggestedNodeId should default to null in ALMOST ALL cases.
+   - ONLY populate if drift is detected AND an existing node is a CLEAR thematic match
+   - If drift detected but no suitable node exists → return null (user should branch new)
+   - When uncertain, default to null
 
 Return JSON only: {
   "referencedNodeIds": ["id1", "id2"],
   "driftDetected": boolean,
   "suggestedNodeId": "id" or null
-}
-
-- If no drift detected, set both driftDetected=false and suggestedNodeId=null
-- If drift detected but no suitable node exists, set suggestedNodeId=null (user should branch new)
-- When in doubt, assume the user is continuing the current conversation and set driftDetected=false`,
+}`,
         },
         {
           role: 'user',

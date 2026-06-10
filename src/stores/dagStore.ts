@@ -1,16 +1,23 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
-import type { Node } from '../types';
+import type { Node, Message } from '../types';
+
+interface UndoEntry {
+  nodes: Node[];
+  messages: Message[];
+}
 
 interface DagState {
   nodes: Node[];
   navigationStack: string[];
-  undoStack: Node[][];
+  undoStack: UndoEntry[];
   addNode: (title: string | null, parentId: string | null, projectId: string) => Promise<Node>;
   updateNodeContent: (id: string, content: string) => Promise<void>;
   renameNode: (id: string, title: string) => Promise<void>;
-  deleteNode: (id: string) => Promise<void>;
+  deleteNode: (id: string, skipUndoSnapshot?: boolean) => Promise<void>;
+  deleteSubtree: (id: string) => Promise<void>;
+  pushUndoSnapshot: (messages?: Message[]) => void;
   getNodesByProject: (projectId: string) => Node[];
   getAllAncestors: (nodeId: string) => Node[];
   getDescendants: (nodeId: string) => Node[];
@@ -31,7 +38,12 @@ export const useDagStore = create<DagState>((set, get) => ({
   navigationStack: [],
   undoStack: [],
 
+  pushUndoSnapshot: (messages = []) => {
+    set(s => ({ undoStack: [...s.undoStack, { nodes: [...s.nodes], messages }] }));
+  },
+
   addNode: async (title, parentId, projectId) => {
+    get().pushUndoSnapshot();
     const now = new Date().toISOString();
     const siblings = get().nodes.filter(n => n.parentId === parentId && n.projectId === projectId);
     const order = siblings.length > 0 ? Math.max(...siblings.map(n => n.order ?? 0)) + 1 : 0;
@@ -66,9 +78,20 @@ export const useDagStore = create<DagState>((set, get) => ({
     set(s => ({ nodes: s.nodes.map(n => (n.id === id ? { ...n, title, updatedAt } : n)) }));
   },
 
-  deleteNode: async (id) => {
+  deleteNode: async (id, skipUndoSnapshot = false) => {
+    const { data: msgs } = await supabase.from('messages').select('*').eq('nodeId', id);
+    if (!skipUndoSnapshot) get().pushUndoSnapshot(msgs ?? []);
     await supabase.from('nodes').delete().eq('id', id);
     set(s => ({ nodes: s.nodes.filter(n => n.id !== id) }));
+  },
+
+  deleteSubtree: async (id) => {
+    const descendants = get().getDescendants(id);
+    const toDelete = [id, ...descendants.map(n => n.id)];
+    const { data: msgs } = await supabase.from('messages').select('*').in('nodeId', toDelete);
+    get().pushUndoSnapshot(msgs ?? []);
+    await supabase.from('nodes').delete().in('id', toDelete);
+    set(s => ({ nodes: s.nodes.filter(n => !toDelete.includes(n.id)) }));
   },
 
   getNodesByProject: (projectId) => get().nodes.filter(n => n.projectId === projectId),
@@ -167,8 +190,7 @@ export const useDagStore = create<DagState>((set, get) => ({
     console.log('Reorder: oldIndex=', oldIndex, 'newOrder=', newOrder);
     if (oldIndex === newOrder) { console.log('No change, returning'); return; } // no change
 
-    // Save undo snapshot before updating
-    set(s => ({ undoStack: [...s.undoStack, [...s.nodes]] }));
+    get().pushUndoSnapshot();
 
     // Recompute orders for affected siblings
     const updated: Node[] = [];
@@ -221,16 +243,28 @@ export const useDagStore = create<DagState>((set, get) => ({
   },
 
   undo: async () => {
-    const { undoStack } = get();
+    const { undoStack, nodes } = get();
     if (undoStack.length === 0) return;
-    const previous = undoStack[undoStack.length - 1];
+    const { nodes: previous, messages: savedMessages } = undoStack[undoStack.length - 1];
+
+    const prevMap = new Map(previous.map(n => [n.id, n]));
+    const currMap = new Map(nodes.map(n => [n.id, n]));
+
+    const toInsert = previous.filter(n => !currMap.has(n.id));
+    const toDelete = nodes.filter(n => !prevMap.has(n.id));
+    const toUpdate = previous.filter(n => {
+      const curr = currMap.get(n.id);
+      return curr && (curr.order !== n.order || curr.parentId !== n.parentId);
+    });
+
     set(s => ({ undoStack: s.undoStack.slice(0, -1), nodes: previous }));
-    // Sync all changed nodes to DB
-    await Promise.all(
-      previous.map(n =>
-        supabase.from('nodes').update({ order: n.order }).eq('id', n.id)
-      )
-    );
+
+    await Promise.all([
+      ...toInsert.map(n => supabase.from('nodes').upsert(n)),
+      ...toDelete.map(n => supabase.from('nodes').delete().eq('id', n.id)),
+      ...toUpdate.map(n => supabase.from('nodes').update({ order: n.order, parentId: n.parentId }).eq('id', n.id)),
+      ...(savedMessages.length > 0 ? [supabase.from('messages').upsert(savedMessages)] : []),
+    ]);
   },
 
   setFromSupabase: (nodes) => set({ nodes }),
