@@ -12,7 +12,7 @@ interface DagState {
   nodes: Node[];
   navigationStack: string[];
   undoStack: UndoEntry[];
-  addNode: (title: string | null, parentId: string | null, projectId: string) => Promise<Node>;
+  addNode: (title: string | null, parentId: string | null, projectId: string, insertAfterNodeId?: string | null, insertBeforeNodeId?: string | null) => Promise<Node>;
   updateNodeContent: (id: string, content: string) => Promise<void>;
   renameNode: (id: string, title: string) => Promise<void>;
   deleteNode: (id: string, skipUndoSnapshot?: boolean) => Promise<void>;
@@ -42,11 +42,49 @@ export const useDagStore = create<DagState>((set, get) => ({
     set(s => ({ undoStack: [...s.undoStack, { nodes: [...s.nodes], messages }] }));
   },
 
-  addNode: async (title, parentId, projectId) => {
+  addNode: async (title, parentId, projectId, insertAfterNodeId = null, insertBeforeNodeId = null) => {
     get().pushUndoSnapshot();
     const now = new Date().toISOString();
-    const siblings = get().nodes.filter(n => n.parentId === parentId && n.projectId === projectId);
-    const order = siblings.length > 0 ? Math.max(...siblings.map(n => n.order ?? 0)) + 1 : 0;
+    const siblings = get().nodes.filter(n => n.parentId === parentId && n.projectId === projectId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    let order: number;
+    if (insertBeforeNodeId) {
+      // Insert before a specific node
+      const insertIdx = siblings.findIndex(n => n.id === insertBeforeNodeId);
+      if (insertIdx >= 0) {
+        if (insertIdx === 0) {
+          // Insert before first: use negative order
+          order = (siblings[0].order ?? 0) - 1;
+        } else {
+          // Insert between prev and current
+          const prevOrder = siblings[insertIdx - 1].order ?? 0;
+          const currOrder = siblings[insertIdx].order ?? 0;
+          order = (prevOrder + currOrder) / 2;
+        }
+      } else {
+        order = siblings.length > 0 ? Math.max(...siblings.map(n => n.order ?? 0)) + 1 : 0;
+      }
+    } else if (insertAfterNodeId) {
+      // Insert after a specific node
+      const insertIdx = siblings.findIndex(n => n.id === insertAfterNodeId);
+      if (insertIdx >= 0) {
+        if (insertIdx === siblings.length - 1) {
+          // Insert after last: add 1
+          order = (siblings[insertIdx].order ?? 0) + 1;
+        } else {
+          // Insert between current and next
+          const currOrder = siblings[insertIdx].order ?? 0;
+          const nextOrder = siblings[insertIdx + 1].order ?? 0;
+          order = (currOrder + nextOrder) / 2;
+        }
+      } else {
+        order = siblings.length > 0 ? Math.max(...siblings.map(n => n.order ?? 0)) + 1 : 0;
+      }
+    } else {
+      // Default: insert at the end
+      order = siblings.length > 0 ? Math.max(...siblings.map(n => n.order ?? 0)) + 1 : 0;
+    }
+
     const node: Node = {
       id: uuidv4(),
       projectId,

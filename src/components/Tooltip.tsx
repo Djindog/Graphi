@@ -18,6 +18,7 @@ export function Tooltip({ children, content, placement = 'top', maxWidth, width 
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLSpanElement>(null);
   const resolvedMaxWidth = maxWidth ?? width;
+  const isShortContent = typeof content === 'string' && content.trim().split(/\s+/).length < 4;
 
   const show = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -70,7 +71,7 @@ export function Tooltip({ children, content, placement = 'top', maxWidth, width 
               ? (placement === 'left' ? 'translate(calc(-100% - 9px), -50%)' : 'translateY(-50%)')
               : (placement === 'top' ? 'translate(-50%, calc(-100% - 9px))' : 'translateX(-50%)'),
             width: 'max-content',
-            maxWidth: `min(${resolvedMaxWidth}px, calc(100vw - 32px))`,
+            maxWidth: isShortContent ? 'none' : `min(${resolvedMaxWidth}px, calc(100vw - 32px))`,
             background: '#111827',
             color: '#fff',
             fontSize: 12,
@@ -82,8 +83,8 @@ export function Tooltip({ children, content, placement = 'top', maxWidth, width 
             pointerEvents: 'none',
             zIndex: 9999,
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            whiteSpace: 'normal',
-            wordBreak: 'break-word',
+            whiteSpace: isShortContent ? 'nowrap' : 'normal',
+            wordBreak: isShortContent ? 'normal' : 'break-word',
           }}
         >
           {triangle && (

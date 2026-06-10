@@ -9,7 +9,7 @@ import { Tooltip } from '../Tooltip';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { detectReferences, detectReferencesAndDrift, generateTitle } from '../../lib/groq';
 import { supabase } from '../../lib/supabase';
-import { processSummary } from '../../lib/summaryManagement';
+import { generateSummaryText, updateNodeSummary } from '../../lib/summaryManagement';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
@@ -69,8 +69,10 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const {
     currentNodeId, messages, currentInput,
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
+    lockedActiveIds, lockedDeactivatedIds,
     isGenerating, setCurrentInput, setReferenced, setRecommended,
-    initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
+    initContext, toggleNodeActive, toggleLock, lockAll, unlockAll,
+    setIsGenerating, addMessage, clearContext, partialClearContext,
     contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
     branchReminderDismissed,
     setBranchReminderDismissed,
@@ -92,6 +94,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const [contextH, setContextH] = useState(0);
   const [sidePopup, setSidePopup] = useState<{ type: 'left' | 'right' | null; y: number; isEdge: boolean }>({ type: null, y: 0, isEdge: false });
   const [stage0InProgress, setStage0InProgress] = useState(false);
+  const [contextPanelVisible, setContextPanelVisible] = useState(true);
 
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
@@ -150,29 +153,33 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
           }
         } else if (e.key === 'ArrowLeft') {
           e.preventDefault();
-          const prev = getPrevSibling(currentNodeId);
-          setNavigationTrigger('arrow');
-          if (prev) {
-            setCurrentNode(prev.id);
-          } else {
-            // Create new sibling
+          if (e.shiftKey) {
+            // Ctrl+Shift+Left: Create new sibling to the left (before current)
             (async () => {
-              const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId);
+              const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId, null, currentNodeId);
               await setCurrentNode(newSibling.id);
             })();
+          } else {
+            // Ctrl+Left: Navigate to previous sibling (do nothing if none)
+            const prev = getPrevSibling(currentNodeId);
+            if (prev) {
+              setCurrentNode(prev.id);
+            }
           }
         } else if (e.key === 'ArrowRight') {
           e.preventDefault();
-          const next = getNextSibling(currentNodeId);
-          setNavigationTrigger('arrow');
-          if (next) {
-            setCurrentNode(next.id);
-          } else {
-            // Create new sibling
+          if (e.shiftKey) {
+            // Ctrl+Shift+Right: Create new sibling to the right (after current)
             (async () => {
-              const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId);
+              const newSibling = await addNode(null, currentNode.parentId, currentNode.projectId, currentNodeId);
               await setCurrentNode(newSibling.id);
             })();
+          } else {
+            // Ctrl+Right: Navigate to next sibling (do nothing if none)
+            const next = getNextSibling(currentNodeId);
+            if (next) {
+              setCurrentNode(next.id);
+            }
           }
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
@@ -435,6 +442,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     ]);
     await renameNode(currentNodeId, 'What is Graphi?');
 
+    // Update summary text every 4 messages (2 back-and-forths)
+    const allMessages = useChatStore.getState().messages.filter(m => m.nodeId === currentNodeId);
+    if (allMessages.length % 4 === 0) {
+      generateSummaryText(allMessages, groqClient)
+        .then(summaryText => {
+          if (summaryText) return updateNodeSummary(currentNodeId, summaryText);
+        })
+        .catch(err => console.error('Summary generation error:', err));
+    }
+
     setIsGenerating(false);
     partialClearContext();
   };
@@ -568,12 +585,14 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
 
       await useDagStore.getState().updateNodeContent(currentNodeId, fullResponse);
 
-      // Process summary in background (extract, append, optionally compact)
-      const currentNode = nodeMap.get(currentNodeId);
-      if (currentNode) {
-        processSummary(currentNodeId, fullResponse, currentNode.summary || '', groqClient).catch(err =>
-          console.error('Summary processing error:', err)
-        );
+      // Update summary text every 4 messages (2 back-and-forths)
+      const allMessages = useChatStore.getState().messages.filter(m => m.nodeId === currentNodeId);
+      if (allMessages.length % 4 === 0) {
+        generateSummaryText(allMessages, groqClient)
+          .then(summaryText => {
+            if (summaryText) return updateNodeSummary(currentNodeId, summaryText);
+          })
+          .catch(err => console.error('Summary generation error:', err));
       }
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === 'AbortError';
@@ -628,7 +647,24 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   return (
     <div style={{ ...(canvasHidden ? { flex: 1 } : { width, flexShrink: 0 }), background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header — full pane width */}
-      <div style={{ padding: '15px 16px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: '15px 16px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+        {/* Pill perched on header bottom edge when panel is collapsed */}
+        {allContextIds.length > 0 && !contextPanelVisible && (
+          <button
+            onClick={() => setContextPanelVisible(true)}
+            style={{
+              position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 30, width: 36, height: 16, padding: 0, border: 'none',
+              borderRadius: 999,
+              background: '#fff',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)',
+              cursor: 'pointer',
+              transition: 'box-shadow 0.15s, background 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.07)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)'; }}
+          />
+        )}
         <div style={{ width: 30, height: 30, borderRadius: 9, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {isRoot
             ? <CircleDot size={15} strokeWidth={2} color="#2563EB" />
@@ -736,7 +772,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               messages={messages}
               isGenerating={isGenerating}
               isLoadingMessages={isLoadingMessages}
-              contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
+              contextPadding={allContextIds.length > 0 && contextPanelVisible ? contextH + 8 : 0}
               scrollContainerRef={messageScrollRef}
               onEditMessage={handleEditSend}
               guidancePillVisible={Boolean(showGuidancePill)}
@@ -751,7 +787,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             />
 
             {/* Blur gradient just below the context panel */}
-            {allContextIds.length > 0 && contextH > 0 && (
+            {allContextIds.length > 0 && contextH > 0 && contextPanelVisible && (
               <div style={{
                 position: 'absolute', top: contextH, left: 0, right: 0, height: 24,
                 background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), transparent)',
@@ -768,6 +804,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   left: '50%', transform: 'translateX(-50%)',
                   width: 'calc(100% - 16px)',
                   zIndex: 10,
+                  display: contextPanelVisible ? 'block' : 'none',
                 }}
                 onWheel={e => { messageScrollRef.current?.scrollBy({ top: e.deltaY }); }}
               >
@@ -776,12 +813,41 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   referencedIds={referencedNodeIds}
                   recommendedIds={recommendedNodeIds}
                   activeIds={activeContextNodeIds}
+                  lockedActiveIds={lockedActiveIds}
+                  lockedDeactivatedIds={lockedDeactivatedIds}
                   nodeMap={nodeMap}
                   onToggle={toggleNodeActive}
+                  onToggleLock={toggleLock}
+                  onLockAll={lockAll}
+                  onUnlockAll={unlockAll}
                   onClearAll={clearAllContext}
                   onReinit={reinitContext}
+                  currentNode={currentNodeId ? nodeMap.get(currentNodeId) ?? null : null}
+                  messages={messages}
+                  groqClient={groqClient}
                 />
               </div>
+            )}
+
+            {/* Toggle pill — sits on bottom edge of panel when open */}
+            {allContextIds.length > 0 && contextPanelVisible && (
+              <button
+                onClick={() => setContextPanelVisible(false)}
+                style={{
+                  position: 'absolute',
+                  top: contextH - 8,
+                  left: '50%', transform: 'translateX(-50%)',
+                  zIndex: 20,
+                  width: 36, height: 16, padding: 0, border: 'none',
+                  borderRadius: 999,
+                  background: '#fff',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.07)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)'; }}
+              />
             )}
           </div>
 

@@ -15,6 +15,10 @@ interface ChatState {
   recommendedNodeIds: string[];
   activeContextNodeIds: string[];
   deactivatedNodeIds: string[];
+  lockedActiveIds: string[];
+  lockedDeactivatedIds: string[];
+  // Per-node lock persistence: lockedContextMap[nodeId] → { active, deactivated }
+  lockedContextMap: Record<string, { active: string[]; deactivated: string[] }>;
   isGenerating: boolean;
   contextDisplayMode: boolean;
   lastContextSnapshot: ContextSnapshot | null;
@@ -34,6 +38,9 @@ interface ChatState {
   setRecommended: (ids: string[]) => void;
   initContext: (lineageIds: string[]) => void;
   toggleNodeActive: (nodeId: string) => void;
+  toggleLock: (nodeId: string) => void;
+  lockAll: (allIds: string[]) => void;
+  unlockAll: () => void;
   setIsGenerating: (val: boolean) => void;
   clearContext: () => void;
   partialClearContext: () => void;
@@ -59,6 +66,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   recommendedNodeIds: [],
   activeContextNodeIds: [],
   deactivatedNodeIds: [],
+  lockedActiveIds: [],
+  lockedDeactivatedIds: [],
+  lockedContextMap: {},
   isGenerating: false,
   contextDisplayMode: false,
   lastContextSnapshot: null,
@@ -80,6 +90,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         recommendedNodeIds: [],
         activeContextNodeIds: [],
         deactivatedNodeIds: [],
+        lockedActiveIds: [],
+        lockedDeactivatedIds: [],
         currentInput: '',
         contextDisplayMode: false,
         lastContextSnapshot: null,
@@ -88,6 +100,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
       return;
     }
+    // Load per-node lock state for the destination node
+    const lockState = get().lockedContextMap[nodeId] ?? { active: [], deactivated: [] };
     set({
       currentNodeId: nodeId,
       messages: [],
@@ -95,6 +109,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       recommendedNodeIds: [],
       activeContextNodeIds: [],
       deactivatedNodeIds: [],
+      lockedActiveIds: lockState.active,
+      lockedDeactivatedIds: lockState.deactivated,
       currentInput: '',
       contextDisplayMode: false,
       lastContextSnapshot: null,
@@ -115,12 +131,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   initContext: (lineageIds) => {
     set(s => {
-      const deactivated = new Set(s.deactivatedNodeIds);
-      const active = new Set(s.activeContextNodeIds);
-      lineageIds.forEach(id => { if (!deactivated.has(id)) active.add(id); });
+      const lockedActive = new Set(s.lockedActiveIds);
+      const lockedDeactivated = new Set(s.lockedDeactivatedIds);
+      // Pre-seed with locked state; lineage fills the rest
+      const active = new Set<string>(lockedActive);
+      const deactivated = new Set<string>(lockedDeactivated);
+      lineageIds.forEach(id => {
+        if (lockedDeactivated.has(id)) return;
+        active.add(id);
+      });
       const activeArr = [...active];
       return {
         activeContextNodeIds: activeArr,
+        deactivatedNodeIds: [...deactivated],
         lastContextSnapshot: { activeIds: activeArr, deactivatedIds: [...deactivated] },
       };
     });
@@ -128,9 +151,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setReferenced: (ids) => {
     set(s => {
+      const lockedDeactivated = new Set(s.lockedDeactivatedIds);
       const deactivated = new Set(s.deactivatedNodeIds);
       const active = new Set(s.activeContextNodeIds);
-      ids.forEach(id => { if (!deactivated.has(id)) active.add(id); });
+      ids.forEach(id => {
+        if (lockedDeactivated.has(id)) return;
+        if (!deactivated.has(id)) active.add(id);
+      });
       const activeArr = [...active];
       return {
         referencedNodeIds: ids,
@@ -142,9 +169,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setRecommended: (ids) => {
     set(s => {
+      const lockedDeactivated = new Set(s.lockedDeactivatedIds);
       const deactivated = new Set(s.deactivatedNodeIds);
       const active = new Set(s.activeContextNodeIds);
-      ids.forEach(id => { if (!deactivated.has(id)) active.add(id); });
+      ids.forEach(id => {
+        if (lockedDeactivated.has(id)) return;
+        if (!deactivated.has(id)) active.add(id);
+      });
       const activeArr = [...active];
       return {
         recommendedNodeIds: ids,
@@ -155,7 +186,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   toggleNodeActive: (nodeId) => {
-    const { activeContextNodeIds, deactivatedNodeIds } = get();
+    const { activeContextNodeIds, deactivatedNodeIds, lockedActiveIds, lockedDeactivatedIds } = get();
+    if (lockedActiveIds.includes(nodeId) || lockedDeactivatedIds.includes(nodeId)) return;
     if (activeContextNodeIds.includes(nodeId)) {
       set({
         activeContextNodeIds: activeContextNodeIds.filter(id => id !== nodeId),
@@ -169,18 +201,64 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  toggleLock: (nodeId) => {
+    const { currentNodeId, activeContextNodeIds, lockedActiveIds, lockedDeactivatedIds, lockedContextMap } = get();
+    let newActive = lockedActiveIds;
+    let newDeactivated = lockedDeactivatedIds;
+    if (lockedActiveIds.includes(nodeId)) {
+      newActive = lockedActiveIds.filter(id => id !== nodeId);
+    } else if (lockedDeactivatedIds.includes(nodeId)) {
+      newDeactivated = lockedDeactivatedIds.filter(id => id !== nodeId);
+    } else if (activeContextNodeIds.includes(nodeId)) {
+      newActive = [...lockedActiveIds, nodeId];
+    } else {
+      newDeactivated = [...lockedDeactivatedIds, nodeId];
+    }
+    const mapUpdate = currentNodeId
+      ? { lockedContextMap: { ...lockedContextMap, [currentNodeId]: { active: newActive, deactivated: newDeactivated } } }
+      : {};
+    set({ lockedActiveIds: newActive, lockedDeactivatedIds: newDeactivated, ...mapUpdate });
+  },
+
+  lockAll: (allIds) => {
+    set(s => {
+      const active = new Set(s.activeContextNodeIds);
+      const newActive = allIds.filter(id => active.has(id));
+      const newDeactivated = allIds.filter(id => !active.has(id));
+      const mapUpdate = s.currentNodeId
+        ? { lockedContextMap: { ...s.lockedContextMap, [s.currentNodeId]: { active: newActive, deactivated: newDeactivated } } }
+        : {};
+      return { lockedActiveIds: newActive, lockedDeactivatedIds: newDeactivated, ...mapUpdate };
+    });
+  },
+
+  unlockAll: () => {
+    set(s => {
+      const mapUpdate = s.currentNodeId
+        ? { lockedContextMap: { ...s.lockedContextMap, [s.currentNodeId]: { active: [], deactivated: [] } } }
+        : {};
+      return { lockedActiveIds: [], lockedDeactivatedIds: [], ...mapUpdate };
+    });
+  },
+
   setIsGenerating: (val) => set({ isGenerating: val }),
 
   clearContext: () =>
-    set({ referencedNodeIds: [], recommendedNodeIds: [], activeContextNodeIds: [], deactivatedNodeIds: [] }),
+    set(s => ({
+      referencedNodeIds: [],
+      recommendedNodeIds: [],
+      activeContextNodeIds: [...s.lockedActiveIds],
+      deactivatedNodeIds: [...s.lockedDeactivatedIds],
+    })),
 
   partialClearContext: () =>
     set(s => {
+      const lockedActive = new Set(s.lockedActiveIds);
       const removable = new Set([...s.referencedNodeIds, ...s.recommendedNodeIds]);
       return {
         referencedNodeIds: [],
         recommendedNodeIds: [],
-        activeContextNodeIds: s.activeContextNodeIds.filter(id => !removable.has(id)),
+        activeContextNodeIds: s.activeContextNodeIds.filter(id => !removable.has(id) || lockedActive.has(id)),
       };
     }),
 
@@ -189,17 +267,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setContextDisplay: (on) => set({ contextDisplayMode: on }),
 
   clearAllContext: () =>
-    set(s => ({
-      activeContextNodeIds: [],
-      deactivatedNodeIds: [...new Set([...s.deactivatedNodeIds, ...s.activeContextNodeIds])],
-    })),
+    set(s => {
+      const lockedActive = new Set(s.lockedActiveIds);
+      const toDeactivate = s.activeContextNodeIds.filter(id => !lockedActive.has(id));
+      return {
+        activeContextNodeIds: [...s.lockedActiveIds],
+        deactivatedNodeIds: [...new Set([...s.deactivatedNodeIds, ...toDeactivate])],
+      };
+    }),
 
   reinitContext: () => {
-    const { lastContextSnapshot } = get();
+    const { lastContextSnapshot, lockedActiveIds, lockedDeactivatedIds } = get();
     if (!lastContextSnapshot) return;
+    const lockedActive = new Set(lockedActiveIds);
+    const lockedDeactivated = new Set(lockedDeactivatedIds);
+    const active = new Set([...lastContextSnapshot.activeIds, ...lockedActive]);
+    lockedDeactivated.forEach(id => active.delete(id));
+    const deactivated = new Set([...lastContextSnapshot.deactivatedIds, ...lockedDeactivated]);
+    lockedActive.forEach(id => deactivated.delete(id));
     set({
-      activeContextNodeIds: lastContextSnapshot.activeIds,
-      deactivatedNodeIds: lastContextSnapshot.deactivatedIds,
+      activeContextNodeIds: [...active],
+      deactivatedNodeIds: [...deactivated],
     });
   },
 

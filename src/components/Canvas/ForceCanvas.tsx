@@ -423,16 +423,20 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
         const nodeData = nodeMapRef.current.get(d.id);
         if (!nodeData) return;
 
+        if (evt.ctrlKey || evt.metaKey) {
+          if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+          onNodeCtrlClickRef.current(nodeData);
+          return;
+        }
+
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
           onNodeDoubleClickRef.current(d.id);
         } else {
-          const isCtrl = evt.ctrlKey || evt.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            if (isCtrl) onNodeCtrlClickRef.current(nodeData);
-            else onNodeClickRef.current(nodeData);
+            onNodeClickRef.current(nodeData);
           }, 220);
           timers.push(clickTimer);
         }

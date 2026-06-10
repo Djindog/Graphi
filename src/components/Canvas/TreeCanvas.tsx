@@ -13,6 +13,10 @@ function createMinimize2Icon(offsetX: number, offsetY: number): string[] {
   ];
 }
 
+// Lock icon SVG paths (lucide, 24×24 viewBox)
+const LOCK_SHACKLE_CLOSED = 'M7 11V7a5 5 0 0 1 10 0v4';
+const LOCK_SHACKLE_OPEN   = 'M7 11V7a5 5 0 0 1 9.9-1';
+
 interface Props {
   nodes: Node[];
   activeNodeId: string | null;
@@ -20,6 +24,8 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
+  lockedActiveIds: string[];
+  lockedDeactivatedIds: string[];
   foldedCountMap: Map<string, number>;
   hoveredNodeId?: string | null;
   onNodeClick: (node: Node) => void;
@@ -27,6 +33,7 @@ interface Props {
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
   onNodeBadgeClick: (nodeId: string) => void;
+  onToggleLock: (nodeId: string) => void;
 }
 
 const NODE_W = 168;
@@ -73,7 +80,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, lockedActiveIds, lockedDeactivatedIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick, onToggleLock }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const treeDataRef = useRef<{ nodes: Map<string, { x: number; y: number }>; width: number; height: number } | null>(null);
@@ -91,6 +98,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const lineageNodeIdsRef = useRef(lineageNodeIds);
   const dangerNodeIdsRef = useRef(dangerNodeIds);
   const hoveredNodeIdRef = useRef(hoveredNodeId);
+  const lockedActiveIdsRef = useRef(lockedActiveIds);
+  const lockedDeactivatedIdsRef = useRef(lockedDeactivatedIds);
 
   // Stable refs for callbacks — prevents Effect 1 from re-running when Canvas re-renders
   const onNodeClickRef = useRef(onNodeClick);
@@ -98,6 +107,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
   const onNodeMenuClickRef = useRef(onNodeMenuClick);
   const onNodeBadgeClickRef = useRef(onNodeBadgeClick);
+  const onToggleLockRef = useRef(onToggleLock);
   const centerOnRootRef = useRef<() => void>(() => {});
 
   // Keep refs in sync every render
@@ -107,11 +117,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   lineageNodeIdsRef.current = lineageNodeIds;
   dangerNodeIdsRef.current = dangerNodeIds;
   hoveredNodeIdRef.current = hoveredNodeId;
+  lockedActiveIdsRef.current = lockedActiveIds;
+  lockedDeactivatedIdsRef.current = lockedDeactivatedIds;
   onNodeClickRef.current = onNodeClick;
   onNodeCtrlClickRef.current = onNodeCtrlClick;
   onNodeDoubleClickRef.current = onNodeDoubleClick;
   onNodeMenuClickRef.current = onNodeMenuClick;
   onNodeBadgeClickRef.current = onNodeBadgeClick;
+  onToggleLockRef.current = onToggleLock;
 
   // Called by both effects: derives node visual style from current refs
   const getNodeStyle = useCallback((nodeId: string) => {
@@ -799,20 +812,96 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         }
       }
 
+      // ── Lock icon (top-left corner, visible in context mode) ──────────────
+      const lockGroup = g.append('g')
+        .attr('class', 'lock-icon-group')
+        .attr('data-id', nodeData.id)
+        .attr('opacity', 0)
+        .attr('pointer-events', 'none')
+        .attr('cursor', 'pointer');
+
+      // Hit area centered on the corner point (0,0)
+      lockGroup.append('rect')
+        .attr('class', 'lock-hit-area')
+        .attr('x', -10).attr('y', -10)
+        .attr('width', 26).attr('height', 26)
+        .attr('fill', 'transparent')
+        .attr('pointer-events', 'all');
+
+      // Icon centered on (0,0) — the corner — so it perches as a badge
+      // Lucide lock center is at (12,12) in the 24×24 viewbox; scale(0.8) → center at (9.6,9.6)
+      const lockIconSvg = lockGroup.append('g')
+        .attr('transform', 'translate(-9,-9) scale(0.8)')
+        .attr('pointer-events', 'none');
+
+      lockIconSvg.append('rect')
+        .attr('class', 'lock-body')
+        .attr('x', 3).attr('y', 11)
+        .attr('width', 18).attr('height', 11)
+        .attr('rx', 2)
+        .attr('fill', '#9CA3AF')
+        .attr('stroke', 'none');
+
+      lockIconSvg.append('path')
+        .attr('class', 'lock-shackle')
+        .attr('d', LOCK_SHACKLE_CLOSED)
+        .attr('fill', 'none')
+        .attr('stroke', '#9CA3AF')
+        .attr('stroke-width', 3)
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round');
+
+      lockGroup.on('mouseenter.lock', (event: MouseEvent) => {
+        event.stopPropagation();
+        const inCtx = activeContextNodeIdsRef.current.length > 0 || deactivatedNodeIdsRef.current.length > 0;
+        if (!inCtx) return;
+        const isLocked = lockedActiveIdsRef.current.includes(nodeData.id) ||
+                         lockedDeactivatedIdsRef.current.includes(nodeData.id);
+        if (!isLocked) {
+          lockGroup.attr('opacity', 0.55);
+          lockGroup.select('rect.lock-body').attr('fill', '#9CA3AF');
+          lockGroup.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_OPEN);
+        }
+      });
+
+      lockGroup.on('mouseleave.lock', () => {
+        const isLocked = lockedActiveIdsRef.current.includes(nodeData.id) ||
+                         lockedDeactivatedIdsRef.current.includes(nodeData.id);
+        if (!isLocked) {
+          lockGroup.attr('opacity', 0);
+          lockGroup.select('rect.lock-body').attr('fill', '#9CA3AF');
+          lockGroup.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
+        }
+      });
+
+      lockGroup.on('mousedown.lock', (event: MouseEvent) => {
+        event.stopPropagation(); // prevent reorder drag from starting
+      });
+
+      lockGroup.on('click.lock', (event: MouseEvent) => {
+        event.stopPropagation();
+        onToggleLockRef.current(nodeData.id);
+      });
+
       let clickTimer: ReturnType<typeof setTimeout> | null = null;
 
       g.on('click', (event: MouseEvent) => {
         event.stopPropagation();
+
+        if (event.ctrlKey || event.metaKey) {
+          if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+          onNodeCtrlClickRef.current(nodeData);
+          return;
+        }
+
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
           onNodeDoubleClickRef.current(nodeData.id);
         } else {
-          const isCtrl = event.ctrlKey || event.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            if (isCtrl) onNodeCtrlClickRef.current(nodeData);
-            else onNodeClickRef.current(nodeData);
+            onNodeClickRef.current(nodeData);
           }, 220);
           timers.push(clickTimer);
         }
@@ -873,7 +962,41 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('stroke-width', es.strokeWidth)
         .attr('opacity', es.opacity);
     });
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, getNodeStyle, getEdgeStyle]);
+
+    // Restyle lock icons
+    const inContextMode = activeContextNodeIds.length > 0 || deactivatedNodeIds.length > 0;
+    svg.selectAll<SVGGElement, unknown>('g.lock-icon-group').each(function() {
+      const el = d3.select(this);
+      const nodeId = el.attr('data-id');
+      if (!nodeId) return;
+
+      const isInContext = activeContextNodeIds.includes(nodeId) || deactivatedNodeIds.includes(nodeId);
+      if (!inContextMode || !isInContext) {
+        el.attr('opacity', 0).attr('pointer-events', 'none');
+        return;
+      }
+
+      el.attr('pointer-events', 'all');
+
+      const isLockedActive = lockedActiveIds.includes(nodeId);
+      const isLockedDeactivated = lockedDeactivatedIds.includes(nodeId);
+
+      if (isLockedActive) {
+        el.attr('opacity', 1);
+        el.select('rect.lock-body').attr('fill', '#2563EB');
+        el.select('path.lock-shackle').attr('stroke', '#2563EB').attr('d', LOCK_SHACKLE_CLOSED);
+      } else if (isLockedDeactivated) {
+        el.attr('opacity', 1);
+        el.select('rect.lock-body').attr('fill', '#9CA3AF');
+        el.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
+      } else {
+        // Unlocked: reset, hide — hover handler reveals with open shackle
+        el.attr('opacity', 0);
+        el.select('rect.lock-body').attr('fill', '#9CA3AF');
+        el.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
+      }
+    });
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, lockedActiveIds, lockedDeactivatedIds, getNodeStyle, getEdgeStyle]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }} onContextMenu={e => e.preventDefault()}>

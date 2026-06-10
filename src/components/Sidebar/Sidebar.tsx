@@ -246,7 +246,7 @@ export function Sidebar({
                 ) : (
                   <>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
-                      {pinnedProjects.has(p.id) && <Pin size={11} strokeWidth={2} color="#F59E0B" style={{ flexShrink: 0 }} />}
+                      {pinnedProjects.has(p.id) && <Pin size={11} strokeWidth={2} color="#2563EB" style={{ flexShrink: 0 }} />}
                       {p.name}
                     </span>
                     <button
