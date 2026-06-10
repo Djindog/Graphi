@@ -485,7 +485,6 @@ const FEATURES: Feature[] = [
             </div>
           ))}
         </div>
-        <TipBox style={{ marginTop: 12 }}>Grip requires a Jina API key. Without it, only referenced nodes and lineage are used.</TipBox>
       </>
     ),
   },

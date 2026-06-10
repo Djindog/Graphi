@@ -95,6 +95,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const dangerNodeIdsRef = useRef(dangerNodeIds);
   const hoveredNodeIdRef = useRef(hoveredNodeId);
 
+  // Stable refs for callbacks — prevents Effect 1 from re-running when Canvas re-renders
+  const onNodeClickRef = useRef(onNodeClick);
+  const onNodeCtrlClickRef = useRef(onNodeCtrlClick);
+  const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
+  const onNodeMenuClickRef = useRef(onNodeMenuClick);
+  const onNodeBadgeClickRef = useRef(onNodeBadgeClick);
+
   // Keep refs in sync every render
   activeNodeIdRef.current = activeNodeId;
   activeContextNodeIdsRef.current = activeContextNodeIds;
@@ -102,6 +109,11 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   lineageNodeIdsRef.current = lineageNodeIds;
   dangerNodeIdsRef.current = dangerNodeIds;
   hoveredNodeIdRef.current = hoveredNodeId;
+  onNodeClickRef.current = onNodeClick;
+  onNodeCtrlClickRef.current = onNodeCtrlClick;
+  onNodeDoubleClickRef.current = onNodeDoubleClick;
+  onNodeMenuClickRef.current = onNodeMenuClick;
+  onNodeBadgeClickRef.current = onNodeBadgeClick;
 
   // Called by both effects: derives node visual style from current refs
   const getNodeStyle = useCallback((nodeId: string) => {
@@ -478,7 +490,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         const nodeScreenY = svgRect.top + transform.applyY(d.y - NODE_H / 2);
         const overlayX = svgRect.left + transform.applyX(d.x + expW / 2) + 12;
         const overlayY = nodeScreenY;
-        onNodeMenuClick(nodeData, overlayX, overlayY, nodeScreenX, nodeScreenY, scaledW, scaledH);
+        onNodeMenuClickRef.current(nodeData, overlayX, overlayY, nodeScreenX, nodeScreenY, scaledW, scaledH);
       });
 
       // Left-click mousedown → start timer for long hold (reorder mode)
@@ -721,7 +733,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
         badgeGroup.on('click', (event: MouseEvent) => {
           event.stopPropagation();
-          onNodeBadgeClick(nodeData.id);
+          onNodeBadgeClickRef.current(nodeData.id);
         });
       }
 
@@ -782,7 +794,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         })
         .on('click', (event: MouseEvent) => {
           event.stopPropagation();
-          onNodeBadgeClick(nodeData.id);
+          onNodeBadgeClickRef.current(nodeData.id);
         });
 
         // Show on node hover (only if not already folded)
@@ -805,14 +817,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           clearTimeout(clickTimer);
           clickTimer = null;
           setNavigationTrigger('double-click');
-          onNodeDoubleClick(nodeData.id);
+          onNodeDoubleClickRef.current(nodeData.id);
         } else {
           const isCtrl = event.ctrlKey || event.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
             setNavigationTrigger('single-click');
-            if (isCtrl) onNodeCtrlClick(nodeData);
-            else onNodeClick(nodeData);
+            if (isCtrl) onNodeCtrlClickRef.current(nodeData);
+            else onNodeClickRef.current(nodeData);
           }, 220);
           timers.push(clickTimer);
         }
@@ -821,7 +833,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     return () => { timers.forEach(t => clearTimeout(t)); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, foldedCountMap, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick]);
+  }, [nodes, foldedCountMap]);
   // Visual state is intentionally excluded — Effect 2 handles restyling without a rebuild.
 
   // ── Effect 2: visual style only ───────────────────────────────────────────
