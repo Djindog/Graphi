@@ -74,7 +74,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
     branchReminderDismissed,
     setBranchReminderDismissed,
-    guidanceEnabled, setGuidanceEnabled, referenceDetectionEnabled, setReferenceDetectionEnabled, driftDetectionEnabled, setDriftDetectionEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
+    guidanceEnabled, setGuidanceEnabled, referenceDetectionEnabled, driftDetectionEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
     devShowGuidancePill, setDevShowGuidancePill,
     setHoveredSuggestedNodeId,
   } = useChatStore();
