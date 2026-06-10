@@ -7,10 +7,38 @@ interface ContextSnapshot {
   deactivatedIds: string[];
 }
 
+const TEMPORARY_MODE_KEY = 'graphi_temporary_mode';
+const TEMPORARY_MESSAGE_TTL_MS = 12 * 60 * 60 * 1000;
+const temporaryMessagesKey = (nodeId: string) => `graphi_temporary_messages:${nodeId}`;
+
+function loadTemporaryMessages(nodeId: string): Message[] {
+  try {
+    const raw = sessionStorage.getItem(temporaryMessagesKey(nodeId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Message[] | { savedAt?: number; messages?: Message[] };
+    if (Array.isArray(parsed)) return parsed;
+    if (!parsed.savedAt || Date.now() - parsed.savedAt > TEMPORARY_MESSAGE_TTL_MS) {
+      sessionStorage.removeItem(temporaryMessagesKey(nodeId));
+      return [];
+    }
+    return parsed.messages ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTemporaryMessages(nodeId: string, messages: Message[]) {
+  sessionStorage.setItem(temporaryMessagesKey(nodeId), JSON.stringify({
+    savedAt: Date.now(),
+    messages,
+  }));
+}
+
 interface ChatState {
   currentNodeId: string | null;
   messages: Message[];
   currentInput: string;
+  temporaryMode: boolean;
   referencedNodeIds: string[];
   recommendedNodeIds: string[];
   activeContextNodeIds: string[];
@@ -27,6 +55,9 @@ interface ChatState {
 
   setCurrentNode: (nodeId: string | null) => Promise<void>;
   addMessage: (msg: Message) => void;
+  setTemporaryMode: (enabled: boolean) => Promise<void>;
+  persistTemporaryMessages: () => void;
+  clearTemporaryMessages: (nodeId?: string) => void;
   setCurrentInput: (text: string) => void;
   setReferenced: (ids: string[]) => void;
   setRecommended: (ids: string[]) => void;
@@ -51,6 +82,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentNodeId: null,
   messages: [],
   currentInput: '',
+  temporaryMode: sessionStorage.getItem(TEMPORARY_MODE_KEY) === 'true',
   referencedNodeIds: [],
   recommendedNodeIds: [],
   activeContextNodeIds: [],
@@ -95,6 +127,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       driftDetected: false,
       suggestedNodeId: null,
     });
+    if (get().temporaryMode) {
+      set({ messages: loadTemporaryMessages(nodeId) });
+      return;
+    }
+
     const { data } = await supabase
       .from('messages')
       .select('*')
@@ -103,7 +140,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (data) set({ messages: data as Message[] });
   },
 
-  addMessage: (msg) => set(s => ({ messages: [...s.messages, msg] })),
+  addMessage: (msg) => set(s => {
+    const messages = [...s.messages, msg];
+    if (s.temporaryMode && s.currentNodeId) saveTemporaryMessages(s.currentNodeId, messages);
+    return { messages };
+  }),
+
+  setTemporaryMode: async (enabled) => {
+    const { currentNodeId, messages, temporaryMode } = get();
+    if (temporaryMode && currentNodeId) saveTemporaryMessages(currentNodeId, messages);
+    sessionStorage.setItem(TEMPORARY_MODE_KEY, enabled ? 'true' : 'false');
+    set({ temporaryMode: enabled });
+
+    if (!currentNodeId) return;
+    if (enabled) {
+      set({ messages: loadTemporaryMessages(currentNodeId) });
+      return;
+    }
+
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('nodeId', currentNodeId)
+      .order('createdAt', { ascending: true });
+    set({ messages: data as Message[] ?? [] });
+  },
+
+  persistTemporaryMessages: () => {
+    const { currentNodeId, messages, temporaryMode } = get();
+    if (temporaryMode && currentNodeId) saveTemporaryMessages(currentNodeId, messages);
+  },
+
+  clearTemporaryMessages: (nodeId) => {
+    const targetNodeId = nodeId ?? get().currentNodeId;
+    if (targetNodeId) sessionStorage.removeItem(temporaryMessagesKey(targetNodeId));
+    if (!nodeId || nodeId === get().currentNodeId) set({ messages: [] });
+  },
 
   setCurrentInput: (text) => set({ currentInput: text }),
 

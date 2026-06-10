@@ -182,6 +182,20 @@ Disabled actions (root node: Remove and Delete) are grayed out at 30% opacity, c
 
 ---
 
+### Temporary Chat
+
+Temporary chat lets you test prompts against the current node without saving the conversation permanently.
+
+1. Open a node so the chat pane is visible.
+2. Click the **Temporary on/off** button in the chat header.
+3. When temporary mode is on, send messages normally. The chat can still use the selected node and connected context.
+4. Messages remain available while the browser tab/session is alive, so you can leave the node and return to it during the same session.
+5. Turn temporary mode off to reload the node's saved chat history and resume normal persistent chat.
+
+Temporary messages are stored only in browser session storage, scoped per node, and expire after 12 hours or when the session is cleared. They are not written to Supabase, do not create snapshots, and do not update the node's saved content or summary.
+
+---
+
 ### Send / Stop Buttons
 
 | State | Send button | Stop button |

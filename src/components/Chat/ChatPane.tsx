@@ -50,6 +50,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
 
   const {
     currentNodeId, messages, currentInput,
+    temporaryMode, setTemporaryMode, persistTemporaryMessages,
     referencedNodeIds, recommendedNodeIds, activeContextNodeIds, deactivatedNodeIds,
     isGenerating, setCurrentInput, setReferenced, setRecommended,
     initContext, toggleNodeActive, setIsGenerating, addMessage, clearContext, partialClearContext,
@@ -359,13 +360,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     if (!newContent.trim() || !currentNodeId || isGenerating || !groqClient) return;
     const editIdx = useChatStore.getState().messages.findIndex(m => m.id === id);
     if (editIdx !== -1) {
-      const toDelete = useChatStore.getState().messages.slice(editIdx);
-      await Promise.all(toDelete.map(m => supabase.from('messages').delete().eq('id', m.id)));
+      if (!temporaryMode) {
+        const toDelete = useChatStore.getState().messages.slice(editIdx);
+        await Promise.all(toDelete.map(m => supabase.from('messages').delete().eq('id', m.id)));
+      }
       useChatStore.setState(s => ({ messages: s.messages.slice(0, editIdx) }));
+      if (temporaryMode) useChatStore.getState().persistTemporaryMessages();
     }
     handleSendWithContent(newContent.trim());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentNodeId, isGenerating, groqClient]);
+  }, [currentNodeId, isGenerating, groqClient, temporaryMode]);
 
   const handleSend = async () => {
     if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
@@ -454,6 +458,11 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       // Final flush in case the last frame hasn't fired yet
       flush();
 
+      if (temporaryMode) {
+        useChatStore.getState().persistTemporaryMessages();
+        return;
+      }
+
       await supabase.from('messages').insert([
         { id: userMsg.id, nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: userMsg.createdAt },
         { id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: fullResponse, createdAt: new Date().toISOString() },
@@ -503,6 +512,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
         }));
       }
     } finally {
+      if (temporaryMode) persistTemporaryMessages();
       abortRef.current = null;
       setIsGenerating(false);
       partialClearContext();
@@ -552,6 +562,35 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
         </div>
         {/* Remedy 1: Message count with tooltip */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Tooltip
+            placement="bottom"
+            width={230}
+            content={
+              temporaryMode
+                ? 'Temporary chat is on. Messages stay in this browser tab session and are not saved to Supabase.'
+                : 'Temporary chat is off. Messages are saved to this node.'
+            }
+          >
+            <button
+              onClick={() => { setTemporaryMode(!temporaryMode); }}
+              disabled={isGenerating}
+              style={{
+                padding: '0.25rem 0.65rem',
+                fontSize: '0.75rem',
+                borderRadius: '0.375rem',
+                border: temporaryMode ? '1px solid #2563EB' : '1px solid #E5E7EB',
+                background: temporaryMode ? '#EFF6FF' : '#fff',
+                color: temporaryMode ? '#1D4ED8' : '#6B7280',
+                cursor: isGenerating ? 'not-allowed' : 'pointer',
+                fontWeight: temporaryMode ? 600 : 500,
+                opacity: isGenerating ? 0.55 : 1,
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Temporary {temporaryMode ? 'on' : 'off'}
+            </button>
+          </Tooltip>
           <span
             style={{
               fontSize: '0.875rem',
