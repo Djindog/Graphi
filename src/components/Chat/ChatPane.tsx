@@ -701,10 +701,13 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               onSend={handleSend}
               onStop={handleStop}
               isGenerating={isGenerating}
-              gripLevel={gripLevel}
-              onGripChange={setGripLevel}
               guidanceEnabled={guidanceEnabled}
-              onGuidanceChange={setGuidanceEnabled}
+              onGuidanceChange={(enabled) => {
+                setGuidanceEnabled(enabled);
+                if (!enabled) {
+                  setGripLevel('off');
+                }
+              }}
               onInputFocus={() => setContextDisplay(true)}
               onInputBlur={() => { if (!contextDisplayMode) setContextDisplay(false); }}
             />
