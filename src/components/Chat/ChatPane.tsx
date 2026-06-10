@@ -639,8 +639,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
           <span
             style={{
               fontSize: '0.875rem',
-              color: messages.length >= REMINDER_THRESHOLD ? 'rgb(78, 70, 0)' : 'rgb(107, 114, 128)',
-              backgroundColor: messages.length >= REMINDER_THRESHOLD ? 'rgb(255, 251, 235)' : 'transparent',
+              color: messages.length >= REMINDER_THRESHOLD ? '#78350F' : 'rgb(107, 114, 128)',
+              backgroundColor: messages.length >= REMINDER_THRESHOLD ? '#FBBF24' : 'transparent',
               padding: messages.length >= REMINDER_THRESHOLD ? '0.25rem 0.75rem' : '0',
               borderRadius: '0.375rem',
               fontWeight: messages.length >= REMINDER_THRESHOLD ? 500 : 400,
@@ -652,14 +652,14 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             }}
             onMouseEnter={(e) => {
               if (messages.length >= REMINDER_THRESHOLD) {
-                e.currentTarget.style.backgroundColor = 'rgb(254, 243, 199)';
+                e.currentTarget.style.backgroundColor = '#F59E0B';
                 const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                 if (tooltip) tooltip.style.display = 'block';
               }
             }}
             onMouseLeave={(e) => {
               if (messages.length >= REMINDER_THRESHOLD) {
-                e.currentTarget.style.backgroundColor = 'rgb(255, 251, 235)';
+                e.currentTarget.style.backgroundColor = '#FBBF24';
                 const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                 if (tooltip) tooltip.style.display = 'none';
               }
