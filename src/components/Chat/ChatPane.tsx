@@ -94,6 +94,13 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const [contextH, setContextH] = useState(0);
   const [sidePopup, setSidePopup] = useState<{ type: 'left' | 'right' | null; y: number; isEdge: boolean }>({ type: null, y: 0, isEdge: false });
   const [stage0InProgress, setStage0InProgress] = useState(false);
+  const [paneToast, setPaneToast] = useState<string | null>(null);
+  const paneToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPaneToast = (msg: string) => {
+    setPaneToast(msg);
+    if (paneToastTimer.current) clearTimeout(paneToastTimer.current);
+    paneToastTimer.current = setTimeout(() => setPaneToast(null), 2000);
+  };
   const [contextPanelVisible, setContextPanelVisible] = useState(true);
 
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
@@ -132,6 +139,10 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
         if (e.key === 'ArrowDown') {
           e.preventDefault();
           if (e.shiftKey) {
+            if (currentNode.isOrphan) {
+              showPaneToast('Orphans cannot be branched');
+              return;
+            }
             // Ctrl+Shift+Down: Create new child
             (async () => {
               const newChild = await addNode(null, currentNodeId, currentNode.projectId);
@@ -296,13 +307,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     setContextH(el.offsetHeight);
     contextRoRef.current = ro;
   }, []);
+
   const currentNode = nodes.find(n => n.id === currentNodeId) ?? null;
 
   useEffect(() => {
     if (!currentNodeId) return;
+    const node = nodes.find(n => n.id === currentNodeId);
+    if (node?.isOrphan) { initContext([]); return; }
     const ancestors = getAllAncestors(currentNodeId);
     initContext(ancestors.map(a => a.id));
-  }, [currentNodeId, getAllAncestors, initContext]);
+  }, [currentNodeId, nodes, getAllAncestors, initContext]);
 
   useEffect(() => {
     if (currentNodeId && prevNodeIdRef.current && currentNodeId !== prevNodeIdRef.current) {
@@ -506,7 +520,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     const lowIntentInput = isLikelyLowIntentInput(userMessage);
     const contextNodeIds = lowIntentInput ? [] : activeContextNodeIds;
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    const ancestors = getAllAncestors(currentNodeId);
+    const isCurrentNodeOrphan = !!nodeMap.get(currentNodeId)?.isOrphan;
+    const ancestors = isCurrentNodeOrphan ? [] : getAllAncestors(currentNodeId);
 
     const fmt = (ids: string[]) => ids.filter(id => contextNodeIds.includes(id))
       .map(id => nodeMap.get(id)).filter(Boolean)
@@ -645,12 +660,25 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const isRoot = !currentNode?.parentId;
 
   return (
-    <div style={{ ...(canvasHidden ? { flex: 1 } : { width, flexShrink: 0 }), background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ ...(canvasHidden ? { flex: 1 } : { width, flexShrink: 0 }), background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+      {/* Pane-level toast */}
+      {paneToast && (
+        <div style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, background: '#111827', color: '#fff',
+          padding: '7px 16px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+          pointerEvents: 'none', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        }}>
+          {paneToast}
+        </div>
+      )}
       {/* Header — full pane width */}
       <div style={{ padding: '15px 16px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
-        {/* Pill perched on header bottom edge when panel is collapsed */}
+        {/* Pill perched on header bottom edge when panel is closed */}
         {allContextIds.length > 0 && !contextPanelVisible && (
           <button
+            title="Expand context"
             onClick={() => setContextPanelVisible(true)}
             style={{
               position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
@@ -772,7 +800,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               messages={messages}
               isGenerating={isGenerating}
               isLoadingMessages={isLoadingMessages}
-              contextPadding={allContextIds.length > 0 && contextPanelVisible ? contextH + 8 : 0}
+              contextPadding={0}
               scrollContainerRef={messageScrollRef}
               onEditMessage={handleEditSend}
               guidancePillVisible={Boolean(showGuidancePill)}
@@ -784,18 +812,10 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                 setBranchReminderDismissed(true);
               }}
               onHoverSuggestedNode={setHoveredSuggestedNodeId}
+              isOrphan={!!currentNode?.isOrphan}
             />
 
-            {/* Blur gradient just below the context panel */}
-            {allContextIds.length > 0 && contextH > 0 && contextPanelVisible && (
-              <div style={{
-                position: 'absolute', top: contextH, left: 0, right: 0, height: 24,
-                background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), transparent)',
-                pointerEvents: 'none', zIndex: 8,
-              }} />
-            )}
-
-            {/* Context panel — U-shape, hangs from top */}
+            {/* Context panel — floats from top */}
             {allContextIds.length > 0 && (
               <div
                 ref={contextCardRef}
@@ -829,9 +849,10 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               </div>
             )}
 
-            {/* Toggle pill — sits on bottom edge of panel when open */}
+            {/* Toggle pill — sits on bottom edge of panel when open or partial */}
             {allContextIds.length > 0 && contextPanelVisible && (
               <button
+                title="Collapse"
                 onClick={() => setContextPanelVisible(false)}
                 style={{
                   position: 'absolute',

@@ -1,12 +1,7 @@
-<svg viewBox="-50 -50 500 450" xmlns="http://www.w3.org/2000/svg" id="logoSvg">
-          <!-- Left curve -->
-          <path id="leftCurve" d="M 250 100 C 250 180, 170 210, 170 300" stroke="#2563EB" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="30"/>
-          <!-- Right curve -->
-          <path id="rightCurve" d="M 250 100 C 250 180, 330 210, 330 300" stroke="#2563EB" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="30"/>
-          <!-- Root node -->
-          <circle id="rootNode" cx="250" cy="100" r="45" fill="#2563EB"/>
-          <!-- Left child -->
-          <circle id="leftChild" cx="170" cy="300" r="36" fill="#2563EB"/>
-          <!-- Right child -->
-          <circle id="rightChild" cx="330" cy="300" r="36" fill="#2563EB"/>
-        </svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="6" r="3"/>
+  <line x1="12" y1="9" x2="12" y2="12"/>
+  <path d="M6 15v-1a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2V15"/>
+  <circle cx="6" cy="18" r="3"/>
+  <circle cx="18" cy="18" r="3"/>
+</svg>

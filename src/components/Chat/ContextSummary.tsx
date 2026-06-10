@@ -96,6 +96,7 @@ interface Props {
   currentNode: Node | null;
   messages: Message[];
   groqClient: InstanceType<typeof Groq> | null;
+  showChips?: boolean;
 }
 
 export function ContextSummary({
@@ -103,9 +104,8 @@ export function ContextSummary({
   lockedActiveIds, lockedDeactivatedIds,
   nodeMap, onToggle, onToggleLock, onLockAll, onUnlockAll,
   onClearAll, onReinit,
-  currentNode, messages, groqClient,
+  currentNode, messages, groqClient, showChips = true,
 }: Props) {
-  const isActive = (id: string) => activeIds.includes(id);
   const ancestorIds = [...ancestors].reverse().map(n => n.id);
   const allIds = [...new Set([
     ...ancestorIds, ...referencedIds, ...recommendedIds,
@@ -124,71 +124,70 @@ export function ContextSummary({
       borderBottom: '1px solid rgba(0,0,0,0.06)',
       overflow: 'hidden',
     }}>
-      {/* Context Summary Section */}
-      <div style={{ padding: '12px 16px 10px' }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', margin: '0 0 9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Context <span style={{ fontSize: 10, fontWeight: 500, color: '#D1D5DB' }}>({activeIds.length}/{allIds.length})</span>
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
-          {allIds.map(id => (
-            <Chip
-              key={id}
-              id={id}
-              nodeMap={nodeMap}
-              activeIds={activeIds}
-              lockedActiveIds={lockedActiveIds}
-              lockedDeactivatedIds={lockedDeactivatedIds}
-              onToggle={onToggle}
-              onToggleLock={onToggleLock}
-            />
-          ))}
+      {/* Context chips — hidden in partial state */}
+      {showChips && (
+        <div style={{ padding: '12px 16px 10px', background: '#fff' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', margin: '0 0 9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Context <span style={{ fontSize: 10, fontWeight: 500, color: '#D1D5DB' }}>({activeIds.length}/{allIds.length})</span>
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
+            {allIds.map(id => (
+              <Chip
+                key={id}
+                id={id}
+                nodeMap={nodeMap}
+                activeIds={activeIds}
+                lockedActiveIds={lockedActiveIds}
+                lockedDeactivatedIds={lockedDeactivatedIds}
+                onToggle={onToggle}
+                onToggleLock={onToggleLock}
+              />
+            ))}
 
-          {/* Clear / Reinit chip */}
-          <Tooltip placement="top" maxWidth={160} content={allCleared ? 'Restore context' : 'Deselect all context'}>
-            <button
-              onClick={allCleared ? onReinit : onClearAll}
-              style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 30, height: 30, borderRadius: 999, cursor: 'pointer',
-                border: allCleared ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
-                background: allCleared ? '#EFF6FF' : '#fff',
-                color: allCleared ? '#2563EB' : '#9CA3AF',
-                fontSize: 14, fontWeight: 600,
-                transition: 'all 0.12s',
-                fontFamily: 'inherit',
-                flexShrink: 0,
-              }}
-            >
-              {allCleared ? '↺' : '✕'}
-            </button>
-          </Tooltip>
+            {/* Clear / Reinit chip */}
+            <Tooltip placement="top" maxWidth={160} content={allCleared ? 'Restore context' : 'Deselect all context'}>
+              <button
+                onClick={allCleared ? onReinit : onClearAll}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 30, height: 30, borderRadius: 999, cursor: 'pointer',
+                  border: allCleared ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
+                  background: allCleared ? '#EFF6FF' : '#fff',
+                  color: allCleared ? '#2563EB' : '#9CA3AF',
+                  fontSize: 14, fontWeight: 600,
+                  transition: 'all 0.12s',
+                  fontFamily: 'inherit',
+                  flexShrink: 0,
+                }}
+              >
+                {allCleared ? '↺' : '✕'}
+              </button>
+            </Tooltip>
 
-          {/* Lock all / Unlock all */}
-          <Tooltip placement="top" content={anyLocked ? 'Unlock all' : 'Lock all context'}>
-            <button
-              onClick={anyLocked ? onUnlockAll : () => onLockAll(allIds)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 30, height: 30, borderRadius: 999, cursor: 'pointer',
-                border: anyLocked ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
-                background: anyLocked ? '#EFF6FF' : '#fff',
-                color: anyLocked ? '#2563EB' : '#9CA3AF',
-                transition: 'all 0.12s',
-                fontFamily: 'inherit',
-                flexShrink: 0,
-              }}
-            >
-              {anyLocked ? <LockOpen size={14} strokeWidth={2.5} /> : <Lock size={14} strokeWidth={2.5} />}
-            </button>
-          </Tooltip>
+            {/* Lock all / Unlock all */}
+            <Tooltip placement="top" content={anyLocked ? 'Unlock all' : 'Lock all context'}>
+              <button
+                onClick={anyLocked ? onUnlockAll : () => onLockAll(allIds)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 30, height: 30, borderRadius: 999, cursor: 'pointer',
+                  border: anyLocked ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
+                  background: anyLocked ? '#EFF6FF' : '#fff',
+                  color: anyLocked ? '#2563EB' : '#9CA3AF',
+                  transition: 'all 0.12s',
+                  fontFamily: 'inherit',
+                  flexShrink: 0,
+                }}
+              >
+                {anyLocked ? <LockOpen size={14} strokeWidth={2.5} /> : <Lock size={14} strokeWidth={2.5} />}
+              </button>
+            </Tooltip>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Node Topics Section */}
-      <div style={{
-        padding: '10px 16px',
-        background: '#FAFAFA',
-      }}>
+      <div style={{ padding: '10px 16px', background: '#FAFAFA' }}>
         <NodeTopics
           node={currentNode}
           messages={messages}

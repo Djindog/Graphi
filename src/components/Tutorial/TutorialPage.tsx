@@ -163,6 +163,7 @@ function VisualNodeTools() {
     { label: 'Fold / Unfold', desc: 'Collapse subtree' },
     { label: 'Remove (Keep Children)', desc: 'Delete node only', danger: true },
     { label: 'Delete Subtree', desc: 'Delete all descendants', danger: true },
+    { label: 'Orphan / Un-orphan', desc: 'Leaf only — detach from lineage', muted: true },
     { label: 'Transplant', desc: 'Copy to another project', muted: true },
   ];
   return (
@@ -177,7 +178,7 @@ function VisualNodeTools() {
       }}>
         {tools.map((t, i) => (
           <div key={t.label}>
-            {(i === 3 || i === 5) && <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />}
+            {(i === 3 || i === 5 || i === 6) && <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 12px', borderRadius: 9, fontSize: 12,
@@ -384,6 +385,46 @@ function VisualSiblingNav() {
   );
 }
 
+function OrphanNodeBox({ label }: { label: string }) {
+  return (
+    <div style={{
+      width: 168, height: 58, borderRadius: 12,
+      border: '2.5px dashed #E5E7EB',
+      background: '#fff',
+      boxShadow: '0 2px 6px rgba(17,24,39,0.08)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px',
+      fontSize: 13, fontWeight: 500, color: '#111827',
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    }}>{label}</div>
+  );
+}
+
+function VisualOrphan() {
+  return (
+    <div style={{ display: 'flex', gap: 48, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Normal node */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6 }}>Normal leaf</div>
+        <NodeBox label="Planning" />
+        <VLine height={14} />
+        <NodeBox label="Next steps" small />
+      </div>
+      {/* Orphan node */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6 }}>Orphan leaf</div>
+        <NodeBox label="Planning" dim />
+        <div style={{ height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 2, height: 14, background: 'transparent', borderLeft: '2px dashed #D1D5DB' }} />
+        </div>
+        <OrphanNodeBox label="Side thought" />
+        <div style={{ marginTop: 8, fontSize: 11, color: '#9CA3AF', textAlign: 'center' }}>
+          no lineage · dotted outline
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VisualLayout() {
   return (
     <div style={{ display: 'flex', gap: 0, height: 140, border: '1.5px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -498,6 +539,7 @@ const FEATURES: Feature[] = [
           <Row label="Fold / Unfold" desc="Collapse or expand the subtree below this node. Folded nodes show a blue count badge." minW={180} />
           <Row label="Remove (Keep Children)" desc="Delete this node only — its children are reparented to this node's parent." danger minW={180} />
           <Row label="Delete Subtree" desc="Permanently delete this node and all descendants. A confirmation dialog appears first." danger minW={180} />
+          <Row label="Orphan / Un-orphan" desc="Leaf nodes only. Detaches the node from lineage — the AI sees no ancestors when chatting here. The node stays in the tree visually but gets a dotted outline and no connecting edge." minW={180} />
           <Row label="Transplant" desc="Copy this node and its subtree into a different project. A submenu lets you pick the target." minW={180} />
         </div>
         <TipBox style={{ marginTop: 16 }}>Hovering over <strong>Remove</strong> or <strong>Delete Subtree</strong> highlights the affected nodes in red on the canvas before you confirm.</TipBox>
@@ -638,6 +680,39 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    id: 'orphan',
+    label: 'Orphan Nodes',
+    visual: <VisualOrphan />,
+    description: (
+      <>
+        <p>An <strong>orphan</strong> is a leaf node that has been detached from its lineage. When you chat in an orphan, the AI receives <em>no ancestor context</em> — just the orphan's own thread. Use it for ephemeral side-thoughts that don't belong to any branch of reasoning.</p>
+        <SectionLabel>Visual cues</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <Row label="Dotted outline" desc="Thick dashed border distinguishes orphans from normal nodes at a glance." minW={150} />
+          <Row label="No edge" desc="The connecting line to the parent is not drawn — the node floats visually." minW={150} />
+        </div>
+        <SectionLabel>Behavior</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <Row label="No lineage" desc="Ancestor nodes are not included in context. Each reply is generated from the orphan's thread only." minW={150} />
+          <Row label="No branching" desc="Branch is hidden in the tool menu. Ctrl+Shift+↓ shows a toast instead of creating a child." minW={150} />
+          <Row label="Still searchable" desc="Orphans are indexed by grip and reference detection — other nodes can pull them into context." minW={150} />
+        </div>
+        <SectionLabel>How to orphan / un-orphan</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0, marginTop: 5 }} />
+            <span>Hover a <strong>leaf node</strong> → click <strong>···</strong> → <strong>Orphan</strong>. The option only appears for nodes with no children.</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0, marginTop: 5 }} />
+            <span>To restore lineage, open the same menu and click <strong>Un-orphan</strong>.</span>
+          </div>
+        </div>
+        <TipBox style={{ marginTop: 4 }}>Orphaning is reversible at any time. The node's parentId is preserved internally — un-orphaning re-draws the edge and restores full lineage context.</TipBox>
+      </>
+    ),
+  },
+  {
     id: 'layout',
     label: 'Layout & Panels',
     visual: <VisualLayout />,
@@ -680,7 +755,7 @@ export function TutorialPage({ onClose, onStartInteractive }: { onClose: () => v
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '18px 24px', borderBottom: '1px solid #F3F4F6', flexShrink: 0,
         }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>Tutorial</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>Help</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {onStartInteractive && (
               <button

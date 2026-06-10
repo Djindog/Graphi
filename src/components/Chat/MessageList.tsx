@@ -189,6 +189,7 @@ interface Props {
   onMoveToNode?: (nodeId: string) => void;
   onDismissGuidance?: () => void;
   onHoverSuggestedNode?: (nodeId: string | null) => void;
+  isOrphan?: boolean;
 }
 
 export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
@@ -205,6 +206,7 @@ export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
   onMoveToNode,
   onDismissGuidance,
   onHoverSuggestedNode,
+  isOrphan = false,
 }, ref) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const internalRef = useRef<HTMLDivElement>(null);
@@ -416,7 +418,7 @@ export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
       )}
 
       {/* Branch new node button */}
-      {showBranchZone && (
+      {showBranchZone && !isOrphan && (
         <div style={{
           position: 'absolute',
           bottom: 8,

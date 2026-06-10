@@ -28,6 +28,7 @@ interface DagState {
   pushNavigationStack: (nodeId: string) => void;
   popNavigationStack: () => string | null;
   reorderSiblings: (nodeId: string, newOrder: number) => Promise<void>;
+  setOrphan: (id: string, isOrphan: boolean) => Promise<void>;
   undo: () => Promise<void>;
   setFromSupabase: (nodes: Node[]) => void;
   subscribeToProjectNodes: (projectId: string) => () => void;
@@ -278,6 +279,12 @@ export const useDagStore = create<DagState>((set, get) => ({
       nodes: s.nodes.map(n => updated.find(u => u.id === n.id) || n)
     }));
     console.log('Store updated');
+  },
+
+  setOrphan: async (id, isOrphan) => {
+    const { error } = await supabase.from('nodes').update({ isOrphan, updatedAt: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    set(s => ({ nodes: s.nodes.map(n => n.id === id ? { ...n, isOrphan } : n) }));
   },
 
   undo: async () => {

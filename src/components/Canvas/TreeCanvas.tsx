@@ -91,6 +91,9 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const justDroppedNodeIdRef = useRef<string | null>(null);
 
 
+  const orphanNodeIdsRef = useRef<Set<string>>(new Set());
+  orphanNodeIdsRef.current = new Set(nodes.filter(n => n.isOrphan).map(n => n.id));
+
   // Stable refs for visual state — Effect 2 reads these without re-running Effect 1
   const activeNodeIdRef = useRef(activeNodeId);
   const activeContextNodeIdsRef = useRef(activeContextNodeIds);
@@ -309,11 +312,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     // Edges — tagged with source/target IDs for Effect 2 to restyle
     treeData.links().forEach(link => {
+      const tgtId = (link.target.data as TreeNode).data.id;
+      // Skip edges to orphan nodes — they appear visually disconnected
+      if (orphanNodeIdsRef.current.has(tgtId)) return;
+
       const sx = link.source.x, sy = link.source.y + NODE_H / 2;
       const tx = link.target.x, ty = link.target.y - NODE_H / 2;
       const midY = sy + (ty - sy) * 0.5;
       const srcId = (link.source.data as TreeNode).data.id;
-      const tgtId = (link.target.data as TreeNode).data.id;
       const es = getEdgeStyle(srcId, tgtId);
 
       const pathD = `M${sx},${sy} C${sx},${midY} ${tx},${midY} ${tx},${ty}`;
@@ -355,12 +361,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           .attr('filter', 'url(#blue-glow)');
       }
 
+      const isOrphanNode = orphanNodeIdsRef.current.has(nodeData.id);
       g.append('rect')
         .attr('class', 'node-bg')
         .attr('width', initW).attr('height', NODE_H).attr('rx', 12)
         .attr('fill', ns.fill)
         .attr('stroke', ns.stroke)
-        .attr('stroke-width', ns.strokeWidth)
+        .attr('stroke-width', isOrphanNode ? 2.5 : ns.strokeWidth)
+        .attr('stroke-dasharray', isOrphanNode ? '7,4' : 'none')
         .attr('filter', ns.shadow !== 'none' ? 'url(#node-shadow)' : '');
 
       // Add blue tint if this node was just dropped
@@ -929,11 +937,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
       d3.select(this).attr('opacity', ns.opacity);
 
+      const isOrphanNode = orphanNodeIdsRef.current.has(nodeId);
       const nodeBg = d3.select(this).select<SVGRectElement>('rect.node-bg');
       nodeBg
         .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill)
         .attr('stroke', isHovered ? 'rgb(217, 119, 6)' : ns.stroke)
-        .attr('stroke-width', isHovered ? 3 : ns.strokeWidth);
+        .attr('stroke-width', isHovered ? 5 : (isOrphanNode ? 5 : ns.strokeWidth))
+        .attr('stroke-dasharray', isOrphanNode ? '7,4' : 'none');
 
       d3.select(this).select<SVGRectElement>('rect.dot-menu-bg')
         .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill);
