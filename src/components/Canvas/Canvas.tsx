@@ -110,6 +110,11 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
         prevDisplayMode.current = contextDisplayMode;
         setContextDisplay(true);
       }
+      if (e.key === 'Escape') {
+        setOverlay(null);
+        setDangerNodeIds([]);
+        setRenameTarget(null);
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Control') {
