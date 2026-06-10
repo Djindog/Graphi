@@ -349,6 +349,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       const g = root.append('g')
         .attr('class', 'tree-node')
         .attr('data-id', nodeData.id)
+        .attr('data-tutorial-node', nodeData.id)
         .attr('transform', `translate(${d.x - initW / 2},${d.y - NODE_H / 2})`)
         .attr('cursor', 'pointer')
         .attr('opacity', ns.opacity);

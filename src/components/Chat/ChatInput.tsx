@@ -49,7 +49,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
     };
 
     return (
-    <div style={{ padding: '4px 12px 16px', background: 'transparent' }}>
+    <div data-tutorial="chat-input-area" style={{ padding: '4px 12px 16px', background: 'transparent' }}>
       {/* Unified composer container — floating card */}
       <div style={{
         border: `1.5px solid ${focused ? '#2563EB' : '#E5E7EB'}`,

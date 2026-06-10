@@ -12,6 +12,8 @@ import { ChatPane } from './components/Chat/ChatPane';
 import { ToastContainer } from './components/Toast';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { TutorialPage } from './components/Tutorial/TutorialPage';
+import { TutorialOverlay } from './components/Tutorial/TutorialOverlay';
+import { useTutorialStore, TUTORIAL_PROJECT_LS_KEY } from './stores/tutorialStore';
 import type { ToastMessage } from './components/Toast';
 import type { Project } from './types';
 import type Groq from 'groq-sdk';
@@ -79,12 +81,32 @@ export default function App() {
   const { setFromSupabase, subscribeToProjectNodes, undo } = useDagStore();
   const storeNodes = useDagStore(s => s.nodes);
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
+  const isTutorialActive = useTutorialStore(s => s.isActive);
+  const tutorialProjectId = useTutorialStore(s => s.nodeIds.projectId);
 
   useEffect(() => {
     if (canvasWidth === null) {
       setChatPaneWidth(w => clampChatWidth(w, sidebarCollapsed));
     }
   }, [sidebarCollapsed, canvasWidth]);
+
+  // Force sidebar open during tutorial
+  useEffect(() => {
+    if (isTutorialActive) setSidebarCollapsed(false);
+  }, [isTutorialActive]);
+
+  // When tutorial ends: clear active project and refresh project list
+  const prevTutorialActive = useRef(false);
+  useEffect(() => {
+    if (prevTutorialActive.current && !isTutorialActive && user) {
+      setActiveProject(null);
+      setFromSupabase([]);
+      loadAllProjects(user.id);
+    }
+    prevTutorialActive.current = isTutorialActive;
+  // loadAllProjects is stable (defined outside component) — safe to omit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTutorialActive, user]);
 
   // Ctrl+Z for undo
   useEffect(() => {
@@ -144,7 +166,24 @@ export default function App() {
     const { data, error } = await supabase
       .from('projects').select('*').eq('userId', userId).order('createdAt', { ascending: false });
     if (error) { console.error(error); return; }
-    if (data) setProjects(data as Project[]);
+    if (!data) return;
+
+    // Clean up any orphaned tutorial project from a crashed/interrupted session
+    const orphanId = localStorage.getItem(TUTORIAL_PROJECT_LS_KEY);
+    if (orphanId && !useTutorialStore.getState().isActive) {
+      await useTutorialStore.getState().cleanupProject(orphanId);
+      const filtered = data.filter(p => p.id !== orphanId);
+      setProjects(filtered as Project[]);
+      if (filtered.length === 0 && !localStorage.getItem('graphi_tutorial_done')) {
+        useTutorialStore.getState().start();
+      }
+      return;
+    }
+
+    setProjects(data as Project[]);
+    if (data.length === 0 && !localStorage.getItem('graphi_tutorial_done')) {
+      useTutorialStore.getState().start();
+    }
   };
 
   const handleSaveKey = async (key: string) => {
@@ -171,6 +210,12 @@ export default function App() {
     setProjects(prev => [project, ...prev.filter(p => p.id !== project.id)]);
     handleSelectProject(project);
     addToast(`"${project.name}" created`);
+    const tutStore = useTutorialStore.getState();
+    if (tutStore.isActive) {
+      localStorage.setItem(TUTORIAL_PROJECT_LS_KEY, project.id);
+      tutStore.setNodeIds({ projectId: project.id, rootNodeId: project.rootNodeId });
+      tutStore.advanceIfOnStep('create-project');
+    }
   };
 
   const handleProjectDeleted = (projectId: string) => {
@@ -371,6 +416,8 @@ export default function App() {
         onError={msg => addToast(msg, 'error')}
         onOpenSettings={() => setShowSettingsKeyModal(true)}
         onOpenTutorial={() => setShowTutorial(true)}
+        isTutorialActive={isTutorialActive}
+        tutorialProjectId={tutorialProjectId}
       />
 
       {/* Left grab handle — only when canvas hidden */}
@@ -500,7 +547,16 @@ export default function App() {
         <ApiKeyModal onSave={handleSaveKey} />
       )}
 
-      {showTutorial && <TutorialPage onClose={() => setShowTutorial(false)} />}
+      {showTutorial && (
+        <TutorialPage
+          onClose={() => setShowTutorial(false)}
+          onStartInteractive={() => {
+            setShowTutorial(false);
+            useTutorialStore.getState().start();
+          }}
+        />
+      )}
+      <TutorialOverlay />
 
       {showSettingsKeyModal && (
         <ApiKeyModal

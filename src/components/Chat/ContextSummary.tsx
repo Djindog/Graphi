@@ -53,7 +53,7 @@ export function ContextSummary({ ancestors, referencedIds, recommendedIds, activ
   };
 
   return (
-    <div style={{
+    <div data-tutorial="context-bar" style={{
       padding: '12px 16px 10px',
       background: '#fff',
       borderRadius: '0 0 14px 14px',

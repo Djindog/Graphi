@@ -3,6 +3,7 @@ import { GitBranch, CircleDot, MousePointerClick } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useDagStore } from '../../stores/dagStore';
 import { useGripStore } from '../../stores/gripStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { Tooltip } from '../Tooltip';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
@@ -370,6 +371,23 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const handleSend = async () => {
     if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
     const userMessage = currentInput.trim();
+
+    // Tutorial input validation
+    const tutStore = useTutorialStore.getState();
+    if (tutStore.isActive) {
+      const tutStep = tutStore.currentStepId();
+      if (tutStep === 'type-question') {
+        if (userMessage !== 'What is Graphi?') {
+          tutStore.setInputError('Please type exactly: "What is Graphi?"');
+          return;
+        }
+        tutStore.setInputError(null);
+        tutStore.advance();
+      } else if (tutStep === 'type-branch-question') {
+        tutStore.setInputError(null);
+        tutStore.advance();
+      }
+    }
 
     // Force Stage 0 to run immediately (clear debounce and execute)
     if (debounceRef.current) {

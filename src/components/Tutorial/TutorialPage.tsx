@@ -566,7 +566,7 @@ const FEATURES: Feature[] = [
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function TutorialPage({ onClose }: { onClose: () => void }) {
+export function TutorialPage({ onClose, onStartInteractive }: { onClose: () => void; onStartInteractive?: () => void }) {
   const [selectedId, setSelectedId] = useState('nodes');
   const feature = FEATURES.find(f => f.id === selectedId) ?? FEATURES[0];
 
@@ -587,21 +587,37 @@ export function TutorialPage({ onClose }: { onClose: () => void }) {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '18px 24px', borderBottom: '1px solid #F3F4F6', flexShrink: 0,
         }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>Tutorial</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>Tutorial</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onStartInteractive && (
+              <button
+                onClick={onStartInteractive}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 8, border: 'none',
+                  background: '#F97316', color: '#fff',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  transition: 'opacity 0.12s', fontFamily: 'inherit',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+              >
+                ▶ Start Tutorial
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              style={{
+                width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E7EB',
+                background: '#fff', color: '#6B7280', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#111827'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; }}
+            >
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E7EB',
-              background: '#fff', color: '#6B7280', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#111827'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; }}
-          >
-            <X size={16} />
-          </button>
         </div>
 
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>

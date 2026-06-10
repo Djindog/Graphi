@@ -143,6 +143,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
     <>
     <div
       ref={ref}
+      data-tutorial="node-tool-overlay"
       onClick={e => e.stopPropagation()}
       style={{
         position: 'fixed', left: clampedX, top: clampedY, zIndex: 1000,

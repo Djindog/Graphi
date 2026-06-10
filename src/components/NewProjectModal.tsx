@@ -26,6 +26,7 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
 
   return (
     <div
+      data-tutorial="new-project-modal"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 3000,
