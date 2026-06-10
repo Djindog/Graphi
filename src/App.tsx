@@ -549,7 +549,13 @@ export default function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {showKeyModal && (
-        <ApiKeyModal onSave={handleSaveKey} />
+        <ApiKeyModal
+          onSave={handleSaveKey}
+          referenceDetectionEnabled={useChatStore.getState().referenceDetectionEnabled}
+          onReferenceDetectionChange={(enabled) => useChatStore.getState().setReferenceDetectionEnabled(enabled)}
+          driftDetectionEnabled={useChatStore.getState().driftDetectionEnabled}
+          onDriftDetectionChange={(enabled) => useChatStore.getState().setDriftDetectionEnabled(enabled)}
+        />
       )}
 
       {showTutorial && (
@@ -568,6 +574,10 @@ export default function App() {
           onSave={handleSaveKey}
           onClose={() => setShowSettingsKeyModal(false)}
           existingKey={currentGroqKey}
+          referenceDetectionEnabled={useChatStore.getState().referenceDetectionEnabled}
+          onReferenceDetectionChange={(enabled) => useChatStore.getState().setReferenceDetectionEnabled(enabled)}
+          driftDetectionEnabled={useChatStore.getState().driftDetectionEnabled}
+          onDriftDetectionChange={(enabled) => useChatStore.getState().setDriftDetectionEnabled(enabled)}
         />
       )}
     </div>

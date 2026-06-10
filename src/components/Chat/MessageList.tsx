@@ -183,7 +183,7 @@ interface Props {
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   onEditMessage?: (id: string, content: string) => void;
   guidancePillVisible?: boolean;
-  guidancePillType?: 'length' | 'drift' | 'noGuidance';
+  guidancePillType?: 'length' | 'drift' | 'driftNoNode' | 'noGuidance';
   suggestedNodeTitle?: string;
   suggestedNodeId?: string;
   onMoveToNode?: (nodeId: string) => void;

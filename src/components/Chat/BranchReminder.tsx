@@ -1,6 +1,6 @@
 import React from 'react';
 
-type GuidancePillType = 'length' | 'drift' | 'noGuidance';
+type GuidancePillType = 'length' | 'drift' | 'driftNoNode' | 'noGuidance';
 
 interface GuidancePillProps {
   type: GuidancePillType;
@@ -24,9 +24,12 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
   if (!isVisible) return null;
 
   const isDrift = type === 'drift';
+  const isDriftNoNode = type === 'driftNoNode';
   const isNoGuidance = type === 'noGuidance';
   const text = isDrift
-    ? 'This seems off-topic. Move to '
+    ? 'This seems to belong to '
+    : isDriftNoNode
+    ? 'This seems off-topic. Consider branching.'
     : isNoGuidance
     ? 'No guidance needed. Conversation is coherent.'
     : 'This thread is getting long. Consider branching.';
@@ -36,7 +39,7 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
       style={{
         display: 'flex',
         justifyContent: 'center',
-        padding: '0.75rem 1rem',
+        padding: '0rem 0.75rem 1rem',
         gap: '1rem',
         marginBottom: '8px'
       }}
@@ -50,7 +53,7 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
           backgroundColor: 'rgb(254, 243, 199)',
           border: '1px solid rgb(217, 119, 6)',
           borderRadius: '9999px',
-          padding: '0.75rem 1.25rem',
+          padding: '0.75rem 1.75rem',
           boxShadow: '0 2px 8px rgba(217, 119, 6, 0.15)',
           gap: '0.5rem 1rem',
           animation: 'slideDown 0.3s ease-out',
@@ -68,6 +71,25 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
           {isDrift && suggestedNodeTitle ? (
             <>
               {text}
+              <button
+                onClick={() => suggestedNodeId && onMoveToNode?.(suggestedNodeId)}
+                onMouseEnter={() => suggestedNodeId && onHoverNode?.(suggestedNodeId)}
+                onMouseLeave={() => onHoverNode?.(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgb(120, 53, 15)',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                  fontSize: 'inherit',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {suggestedNodeTitle}
+              </button>
+              . Move to{' '}
               <button
                 onClick={() => suggestedNodeId && onMoveToNode?.(suggestedNodeId)}
                 onMouseEnter={() => suggestedNodeId && onHoverNode?.(suggestedNodeId)}
@@ -109,11 +131,11 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
                 border: 'none',
                 color: 'rgb(120, 53, 15)',
                 cursor: 'pointer',
-                padding: '0.25rem 0.5rem',
+                padding: '0 0.5rem',
                 fontSize: '0.875rem',
                 opacity: 0.8,
                 transition: 'opacity 0.2s ease',
-                textDecoration: 'none',
+                textDecoration: 'underline',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.opacity = '1';

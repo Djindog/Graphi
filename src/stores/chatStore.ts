@@ -22,6 +22,8 @@ interface ChatState {
   driftDetected: boolean;
   suggestedNodeId: string | null;
   guidanceEnabled: boolean;
+  referenceDetectionEnabled: boolean;
+  driftDetectionEnabled: boolean;
   devShowGuidancePill: boolean;
   hoveredSuggestedNodeId: string | null;
 
@@ -43,6 +45,8 @@ interface ChatState {
   setDriftDetected: (detected: boolean) => void;
   setSuggestedNodeId: (id: string | null) => void;
   setGuidanceEnabled: (enabled: boolean) => void;
+  setReferenceDetectionEnabled: (enabled: boolean) => void;
+  setDriftDetectionEnabled: (enabled: boolean) => void;
   setDevShowGuidancePill: (show: boolean) => void;
   setHoveredSuggestedNodeId: (id: string | null) => void;
 }
@@ -62,6 +66,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   driftDetected: false,
   suggestedNodeId: null,
   guidanceEnabled: true,
+  referenceDetectionEnabled: true,
+  driftDetectionEnabled: true,
   devShowGuidancePill: false,
   hoveredSuggestedNodeId: null,
 
@@ -204,6 +210,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setSuggestedNodeId: (id) => set({ suggestedNodeId: id }),
 
   setGuidanceEnabled: (enabled) => set({ guidanceEnabled: enabled }),
+
+  setReferenceDetectionEnabled: (enabled) => set({ referenceDetectionEnabled: enabled }),
+
+  setDriftDetectionEnabled: (enabled) => set({ driftDetectionEnabled: enabled }),
 
   setDevShowGuidancePill: (show) => set({ devShowGuidancePill: show }),
 

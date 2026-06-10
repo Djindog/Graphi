@@ -17,7 +17,7 @@ import { ContextSummary } from './ContextSummary';
 import type { Message } from '../../types';
 import type Groq from 'groq-sdk';
 
-const DEBOUNCE_MS = 2000;
+const DEBOUNCE_MS = 1000;
 
 const TUTORIAL_WHAT_IS_GRAPHI =
 `Graphi is a tree-based thinking tool for exploratory conversations.
@@ -74,7 +74,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     contextDisplayMode, setContextDisplay, clearAllContext, reinitContext,
     branchReminderDismissed,
     setBranchReminderDismissed,
-    guidanceEnabled, setGuidanceEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
+    guidanceEnabled, setGuidanceEnabled, referenceDetectionEnabled, setReferenceDetectionEnabled, driftDetectionEnabled, setDriftDetectionEnabled, driftDetected, suggestedNodeId, setDriftDetected, setSuggestedNodeId,
     devShowGuidancePill, setDevShowGuidancePill,
     setHoveredSuggestedNodeId,
   } = useChatStore();
@@ -91,6 +91,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const messageListRef = useRef<{ scrollToBottom: () => void }>(null);
   const [contextH, setContextH] = useState(0);
   const [sidePopup, setSidePopup] = useState<{ type: 'left' | 'right' | null; y: number; isEdge: boolean }>({ type: null, y: 0, isEdge: false });
+  const [stage0InProgress, setStage0InProgress] = useState(false);
 
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
@@ -99,9 +100,10 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   const messageCount = messages.length;
   const showRemedy2 = guidanceEnabled && messageCount >= REMINDER_THRESHOLD && !driftDetected && !branchReminderDismissed;
   const showRemedy3 = guidanceEnabled && driftDetected && suggestedNodeId && suggestedNodeId !== currentNodeId;
-  const showGuidancePill = showRemedy2 || showRemedy3 || devShowGuidancePill;
-  const noGuidanceNeeded = devShowGuidancePill && !showRemedy2 && !showRemedy3;
-  const pillType = showRemedy3 ? 'drift' : noGuidanceNeeded ? 'noGuidance' : 'length' as const;
+  const showRemedy4 = guidanceEnabled && driftDetected && !suggestedNodeId && !branchReminderDismissed;
+  const showGuidancePill = showRemedy2 || showRemedy3 || showRemedy4 || devShowGuidancePill;
+  const noGuidanceNeeded = devShowGuidancePill && !showRemedy2 && !showRemedy3 && !showRemedy4;
+  const pillType = showRemedy3 ? 'drift' : showRemedy4 ? 'driftNoNode' : noGuidanceNeeded ? 'noGuidance' : 'length' as const;
   const suggestedNode = suggestedNodeId ? nodes.find(n => n.id === suggestedNodeId) : null;
 
   // Listen for localStorage changes (e.g., from settings modal)
@@ -317,12 +319,13 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     if (!projectId) return;
     const projectNodes = getNodesByProject(projectId);
 
+    setStage0InProgress(true);
     try {
-      // Only check for drift if thread has enough messages (respects intentional branching)
-      // For new threads (< 4 messages), only detect references to save tokens
       const hasEnoughMessages = messages.length >= 4;
+      const shouldDetectDrift = driftDetectionEnabled && hasEnoughMessages;
+      const shouldDetectReferences = referenceDetectionEnabled;
 
-      if (hasEnoughMessages && groqClient) {
+      if (shouldDetectDrift && groqClient) {
         // Full Stage 0: detect both references and drift
         const { referencedNodeIds, driftDetected, suggestedNodeId } = await detectReferencesAndDrift(
           message,
@@ -335,13 +338,16 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
         setReferenced(referencedNodeIds);
         setDriftDetected(driftDetected);
         setSuggestedNodeId(suggestedNodeId);
-      } else {
-        // Light Stage 0: only detect references (skip drift check for new threads)
-        const referencedNodeIds = groqClient
-          ? await detectReferences(message, projectNodes, groqClient)
-          : [];
+      } else if (shouldDetectReferences && groqClient) {
+        // Light Stage 0: only detect references (skip drift check)
+        const referencedNodeIds = await detectReferences(message, projectNodes, groqClient);
 
         setReferenced(referencedNodeIds);
+        setDriftDetected(false);
+        setSuggestedNodeId(null);
+      } else {
+        // No detection enabled
+        setReferenced([]);
         setDriftDetected(false);
         setSuggestedNodeId(null);
       }
@@ -354,6 +360,8 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       setDriftDetected(false);
       setSuggestedNodeId(null);
       setRecommended([]);
+    } finally {
+      setStage0InProgress(false);
     }
   }, [currentNodeId, currentNode, messages.length, getNodesByProject, setReferenced, setRecommended, setDriftDetected, setSuggestedNodeId, clearContext, groqClient]);
 
@@ -787,6 +795,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               onStop={handleStop}
               isGenerating={isGenerating}
               guidanceEnabled={guidanceEnabled}
+              stage0InProgress={stage0InProgress}
               onGuidanceChange={(enabled) => {
                 setGuidanceEnabled(enabled);
                 if (!enabled) {
