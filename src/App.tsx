@@ -12,6 +12,8 @@ import { ChatPane } from './components/Chat/ChatPane';
 import { ToastContainer } from './components/Toast';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { TutorialPage } from './components/Tutorial/TutorialPage';
+import { TutorialOverlay } from './components/Tutorial/TutorialOverlay';
+import { useTutorialStore, TUTORIAL_PROJECT_LS_KEY } from './stores/tutorialStore';
 import type { ToastMessage } from './components/Toast';
 import type { Project } from './types';
 import type Groq from 'groq-sdk';
@@ -29,7 +31,8 @@ function getSidebarWidth(collapsed: boolean) {
 }
 
 function clampChatWidth(w: number, sidebarCollapsed: boolean) {
-  const max = Math.min(MAX_CHAT_WIDTH, Math.floor((window.innerWidth - getSidebarWidth(sidebarCollapsed)) / 2));
+  const available = window.innerWidth - getSidebarWidth(sidebarCollapsed) - 8;
+  const max = Math.floor(available * 2 / 3);
   return Math.max(MIN_CHAT_WIDTH, Math.min(max, w));
 }
 
@@ -79,12 +82,35 @@ export default function App() {
   const { setFromSupabase, subscribeToProjectNodes, undo } = useDagStore();
   const storeNodes = useDagStore(s => s.nodes);
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
+  const isTutorialActive = useTutorialStore(s => s.isActive);
+  const tutorialProjectId = useTutorialStore(s => s.nodeIds.projectId);
 
   useEffect(() => {
     if (canvasWidth === null) {
       setChatPaneWidth(w => clampChatWidth(w, sidebarCollapsed));
     }
   }, [sidebarCollapsed, canvasWidth]);
+
+  // Tutorial lifecycle: clear project state when tutorial starts; refresh when it ends
+  const prevTutorialActive = useRef(false);
+  useEffect(() => {
+    if (!prevTutorialActive.current && isTutorialActive) {
+      // Tutorial just became active: isolate from any existing project
+      setSidebarCollapsed(false);
+      setActiveProject(null);
+      setFromSupabase([]);
+      void setCurrentNode(null);
+    }
+    if (prevTutorialActive.current && !isTutorialActive && user) {
+      // Tutorial just ended: refresh project list
+      setActiveProject(null);
+      setFromSupabase([]);
+      loadAllProjects(user.id);
+    }
+    prevTutorialActive.current = isTutorialActive;
+  // loadAllProjects is stable (useCallback-free module fn) — safe to omit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTutorialActive, user]);
 
   // Ctrl+Z for undo
   useEffect(() => {
@@ -144,7 +170,24 @@ export default function App() {
     const { data, error } = await supabase
       .from('projects').select('*').eq('userId', userId).order('createdAt', { ascending: false });
     if (error) { console.error(error); return; }
-    if (data) setProjects(data as Project[]);
+    if (!data) return;
+
+    // Clean up any orphaned tutorial project from a crashed/interrupted session
+    const orphanId = localStorage.getItem(TUTORIAL_PROJECT_LS_KEY);
+    if (orphanId && !useTutorialStore.getState().isActive) {
+      await useTutorialStore.getState().cleanupProject(orphanId);
+      const filtered = data.filter(p => p.id !== orphanId);
+      setProjects(filtered as Project[]);
+      if (filtered.length === 0 && !localStorage.getItem('graphi_tutorial_done')) {
+        useTutorialStore.getState().start();
+      }
+      return;
+    }
+
+    setProjects(data as Project[]);
+    if (data.length === 0 && !localStorage.getItem('graphi_tutorial_done')) {
+      useTutorialStore.getState().start();
+    }
   };
 
   const handleSaveKey = async (key: string) => {
@@ -171,6 +214,12 @@ export default function App() {
     setProjects(prev => [project, ...prev.filter(p => p.id !== project.id)]);
     handleSelectProject(project);
     addToast(`"${project.name}" created`);
+    const tutStore = useTutorialStore.getState();
+    if (tutStore.isActive) {
+      localStorage.setItem(TUTORIAL_PROJECT_LS_KEY, project.id);
+      tutStore.setNodeIds({ projectId: project.id, rootNodeId: project.rootNodeId });
+      tutStore.advanceIfOnStep('name-project');
+    }
   };
 
   const handleProjectDeleted = (projectId: string) => {
@@ -218,10 +267,11 @@ export default function App() {
           setChatPaneHidden(false);
         }
       } else {
-        // Dragging left: shrink Canvas, expand ChatPane (capped at MAX_CHAT_WIDTH)
-        finalChatW = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, newChatW));
+        // Dragging left: shrink Canvas, expand ChatPane up to 2/3 of available, then snap to full
+        const maxBeforeSnap = Math.floor(dragState.current.maxW * 2 / 3);
+        finalChatW = Math.max(MIN_CHAT_WIDTH, Math.min(maxBeforeSnap, newChatW));
         const implicitCanvasW = dragState.current.maxW - finalChatW;
-        if (delta > CANVAS_SNAP_THRESHOLD) {
+        if (newChatW > maxBeforeSnap) {
           hideCanvas = true;
           setCanvasWidth(0);
         } else {
@@ -371,6 +421,8 @@ export default function App() {
         onError={msg => addToast(msg, 'error')}
         onOpenSettings={() => setShowSettingsKeyModal(true)}
         onOpenTutorial={() => setShowTutorial(true)}
+        isTutorialActive={isTutorialActive}
+        tutorialProjectId={tutorialProjectId}
       />
 
       {/* Left grab handle — only when canvas hidden */}
@@ -500,7 +552,16 @@ export default function App() {
         <ApiKeyModal onSave={handleSaveKey} />
       )}
 
-      {showTutorial && <TutorialPage onClose={() => setShowTutorial(false)} />}
+      {showTutorial && (
+        <TutorialPage
+          onClose={() => setShowTutorial(false)}
+          onStartInteractive={() => {
+            setShowTutorial(false);
+            useTutorialStore.getState().start();
+          }}
+        />
+      )}
+      <TutorialOverlay />
 
       {showSettingsKeyModal && (
         <ApiKeyModal

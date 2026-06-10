@@ -25,7 +25,7 @@ interface Props {
 
 
 export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
-  const { addNode, deleteNode, getDescendants, getAllAncestors, nodes } = useDagStore();
+  const { addNode, deleteNode, deleteSubtree, getDescendants, getAllAncestors, nodes, pushUndoSnapshot } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
   const [transplantOpen, setTransplantOpen] = useState(false);
@@ -54,6 +54,9 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
 
   const cut = async () => {
     if (isRoot) return;
+    // Snapshot BEFORE re-parenting children, so undo restores the full original structure
+    const { data: msgs } = await supabase.from('messages').select('*').eq('nodeId', node.id);
+    pushUndoSnapshot(msgs ?? []);
     const children = nodes.filter(n => n.parentId === node.id);
     for (const child of children) {
       await supabase.from('nodes').update({ parentId: node.parentId }).eq('id', child.id);
@@ -62,7 +65,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
       }));
     }
     if (currentNodeId === node.id && node.parentId) await setCurrentNode(node.parentId);
-    await deleteNode(node.id);
+    await deleteNode(node.id, true); // skip internal snapshot — already taken above
     onClose();
   };
 
@@ -72,10 +75,8 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
   };
 
   const executePrune = async () => {
-    const descendants = getDescendants(node.id);
-    for (const d of descendants) await deleteNode(d.id);
     if (currentNodeId === node.id && node.parentId) await setCurrentNode(node.parentId);
-    await deleteNode(node.id);
+    await deleteSubtree(node.id);
     setConfirmDialog({ action: null });
     onClose();
   };
@@ -145,6 +146,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
     <>
     <div
       ref={ref}
+      data-tutorial="node-tool-overlay"
       onClick={e => e.stopPropagation()}
       style={{
         position: 'fixed', left: clampedX, top: clampedY, zIndex: 1000,
@@ -165,18 +167,18 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
         </div>
       ) : (
         <>
-          <Btn icon={<GitFork size={13} />} onClick={branch}>Branch</Btn>
+          <Btn icon={<GitFork size={13} />} onClick={branch} dataTutorial="branch-btn">Branch</Btn>
           <Btn icon={<Pencil size={13} />} onClick={() => onRenameRequest(node)}>Rename</Btn>
           {isFolded
-            ? <Btn icon={<Maximize2 size={13} />} onClick={onUnfold}>Unfold</Btn>
-            : <Btn icon={<Minimize2 size={13} />} onClick={onFold} disabled={isRoot}>Fold</Btn>
+            ? <Btn icon={<Maximize2 size={13} />} onClick={onUnfold} dataTutorial="unfold-btn">Unfold</Btn>
+            : <Btn icon={<Minimize2 size={13} />} onClick={onFold} disabled={isRoot} dataTutorial="fold-btn">Fold</Btn>
           }
           <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
-          <Btn icon={<Scissors size={13} />} onClick={cut} disabled={isRoot} danger
+          <Btn icon={<Scissors size={13} />} onClick={cut} disabled={isRoot} danger dataTutorial="cut-btn"
             onMouseEnter={() => onDangerHover([node.id])}
             onMouseLeave={() => onDangerHover([])}
           >Remove (Keep Children)</Btn>
-          <Btn icon={<Trash2 size={13} />} onClick={prune} disabled={isRoot} danger
+          <Btn icon={<Trash2 size={13} />} onClick={prune} disabled={isRoot} danger dataTutorial="delete-subtree-btn"
             onMouseEnter={() => onDangerHover([node.id, ...getDescendants(node.id).map(n => n.id)])}
             onMouseLeave={() => onDangerHover([])}
           >Delete Subtree</Btn>
@@ -208,7 +210,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
   );
 }
 
-function Btn({ icon, onClick, children, disabled, danger, muted, onMouseEnter, onMouseLeave }: {
+function Btn({ icon, onClick, children, disabled, danger, muted, onMouseEnter, onMouseLeave, dataTutorial }: {
   icon?: React.ReactNode;
   onClick: () => void;
   children: React.ReactNode;
@@ -217,11 +219,13 @@ function Btn({ icon, onClick, children, disabled, danger, muted, onMouseEnter, o
   muted?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  dataTutorial?: string;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      data-tutorial={dataTutorial}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
         width: '100%', padding: '8px 12px', fontSize: 13, borderRadius: 9, border: 'none',
