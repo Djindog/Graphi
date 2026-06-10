@@ -17,7 +17,8 @@ interface Props {
 export function ContextSummary({ ancestors, referencedIds, recommendedIds, activeIds, nodeMap, onToggle, onClearAll, onReinit }: Props) {
   const [tooltip, setTooltip] = useState(false);
   const isActive = (id: string) => activeIds.includes(id);
-  const allIds = [...new Set([...ancestors.map(n => n.id), ...referencedIds, ...recommendedIds])];
+  const ancestorIds = [...ancestors].reverse().map(n => n.id);
+  const allIds = [...new Set([...ancestorIds, ...referencedIds, ...recommendedIds])];
   const allCleared = allIds.length > 0 && activeIds.length === 0;
 
   const Chip = ({ id }: { id: string }) => {

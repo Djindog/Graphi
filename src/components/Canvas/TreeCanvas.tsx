@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
-import { useCanvasStore } from '../../stores/canvasStore';
 import { useDagStore } from '../../stores/dagStore';
 import type { Node } from '../../types';
 
@@ -84,8 +83,6 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const reorderStateRef = useRef<{ draggingNodeId: string | null; dropTargetIndex: number | null; elevation: number }>({ draggingNodeId: null, dropTargetIndex: null, elevation: 0 });
   const justDroppedNodeIdRef = useRef<string | null>(null);
 
-  const navigationTrigger = useCanvasStore(s => s.navigationTrigger);
-  const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
 
   // Stable refs for visual state — Effect 2 reads these without re-running Effect 1
   const activeNodeIdRef = useRef(activeNodeId);
@@ -101,6 +98,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
   const onNodeMenuClickRef = useRef(onNodeMenuClick);
   const onNodeBadgeClickRef = useRef(onNodeBadgeClick);
+  const centerOnRootRef = useRef<() => void>(() => {});
 
   // Keep refs in sync every render
   activeNodeIdRef.current = activeNodeId;
@@ -155,43 +153,22 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     return                                         { stroke: BLUE,       strokeWidth: 2,   opacity: 1   };
   }, []); // stable — reads from refs, no deps
 
-  const isNodeFullyVisible = useCallback((nodeId: string): boolean => {
-    if (!svgRef.current || !treeDataRef.current) return false;
-    const nodePos = treeDataRef.current.nodes.get(nodeId);
-    if (!nodePos) return false;
-
-    const svg = svgRef.current;
-    const transform = d3.zoomTransform(svg);
-    const screenX = transform.applyX(nodePos.x);
-    const screenY = transform.applyY(nodePos.y);
-
-    const padding = 10; // pixels of buffer
-    const nodeW = (expandedWidth(nodes.find(n => n.id === nodeId)?.title ?? null) || NODE_W) * transform.k;
-    const nodeH = NODE_H * transform.k;
-
-    return (
-      screenX - nodeW / 2 >= padding &&
-      screenX + nodeW / 2 <= svg.clientWidth - padding &&
-      screenY - nodeH / 2 >= padding &&
-      screenY + nodeH / 2 <= svg.clientHeight - padding
-    );
-  }, [nodes]);
-
-  const centerOnNode = useCallback((nodeId: string) => {
+  const centerOnRoot = useCallback(() => {
     if (!svgRef.current || !treeDataRef.current || !zoomRef.current) return;
-    const nodePos = treeDataRef.current.nodes.get(nodeId);
-    if (!nodePos || nodePos.x === undefined || nodePos.y === undefined) return;
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const rootNode = nodes.find(n => !n.parentId || !nodeIds.has(n.parentId));
+    if (!rootNode) return;
+    const rootPos = treeDataRef.current.nodes.get(rootNode.id);
+    if (!rootPos) return;
 
     const svg = svgRef.current;
     const k = d3.zoomTransform(svg).k;
-
-    // Center node: screenX = k * nodeX + x, so x = screenX - k * nodeX
-    const newX = svg.clientWidth / 2 - k * nodePos.x;
-    const newY = svg.clientHeight / 2 - k * nodePos.y;
+    const newX = svg.clientWidth / 2 - k * rootPos.x;
+    const newY = svg.clientHeight / 2 - k * rootPos.y;
     const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
-
     d3.select(svg).call(zoomRef.current.transform, newTransform);
-  }, []);
+  }, [nodes]);
+  centerOnRootRef.current = centerOnRoot;
 
   // ── Effect 1: structure + layout ──────────────────────────────────────────
   // Runs only when node structure or fold state changes.
@@ -271,6 +248,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         if (hasDragged) {
           // suppress the click event that would fire after mouseup
           window.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+        } else if (event.button === 0 && isLeftClickOnBackground) {
+          centerOnRootRef.current();
         }
       };
 
@@ -499,6 +478,15 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       let isDragging = false;
 
       g.on('mousedown', (event: MouseEvent) => {
+        // Right-click: open menu
+        if (event.button === 2) {
+          event.preventDefault();
+          event.stopPropagation();
+          const r = NODE_W;
+          onNodeMenuClickRef.current(nodeData, event.clientX + 8, event.clientY, event.clientX - NODE_W / 2, event.clientY - 30, r, 60);
+          return;
+        }
+
         if (event.button !== 0) return; // only left-click
         event.stopPropagation();
 
@@ -818,13 +806,11 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
-          setNavigationTrigger('double-click');
           onNodeDoubleClickRef.current(nodeData.id);
         } else {
           const isCtrl = event.ctrlKey || event.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            setNavigationTrigger('single-click');
             if (isCtrl) onNodeCtrlClickRef.current(nodeData);
             else onNodeClickRef.current(nodeData);
           }, 220);
@@ -888,26 +874,6 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('opacity', es.opacity);
     });
   }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, getNodeStyle, getEdgeStyle]);
-
-  // Effect 3: Handle navigation-triggered centering
-  useEffect(() => {
-    if (!activeNodeId || !navigationTrigger) return;
-
-    if (navigationTrigger === 'double-click') {
-      // Always center on double-click
-      centerOnNode(activeNodeId);
-      setNavigationTrigger(null);
-    } else if (navigationTrigger === 'arrow' || navigationTrigger === 'button') {
-      // Center only if node is not fully visible
-      if (!isNodeFullyVisible(activeNodeId)) {
-        centerOnNode(activeNodeId);
-      }
-      setNavigationTrigger(null);
-    } else if (navigationTrigger === 'single-click') {
-      // No centering on single click
-      setNavigationTrigger(null);
-    }
-  }, [activeNodeId, navigationTrigger, centerOnNode, isNodeFullyVisible, setNavigationTrigger]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }} onContextMenu={e => e.preventDefault()}>
