@@ -9,6 +9,7 @@ interface Props {
   onStop: () => void;
   isGenerating: boolean;
   guidanceEnabled?: boolean;
+  stage0InProgress?: boolean;
   onGuidanceChange?: (enabled: boolean) => void;
   onInputFocus?: () => void;
   onInputBlur?: () => void;
@@ -28,7 +29,7 @@ const Spinner = () => (
 );
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
-  ({ value, onChange, onSend, onStop, isGenerating, guidanceEnabled = true, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
+  ({ value, onChange, onSend, onStop, isGenerating, guidanceEnabled = true, stage0InProgress = false, onGuidanceChange, onInputFocus, onInputBlur }, ref) => {
     const [focused, setFocused] = useState(false);
     const canSend = !isGenerating && !!value.trim();
 
@@ -43,11 +44,14 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
         border: `1.5px solid ${focused ? '#2563EB' : '#E5E7EB'}`,
         borderRadius: 14,
         background: '#fff',
-        boxShadow: focused
+        boxShadow: stage0InProgress && guidanceEnabled
+          ? '0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7)'
+          : focused
           ? '0 0 0 3px #EFF6FF, 0 4px 20px rgba(0,0,0,0.10)'
           : '0 2px 12px rgba(17,24,39,0.09), 0 1px 3px rgba(17,24,39,0.05)',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         padding: '4px 4px 4px 0',
+        animation: stage0InProgress && guidanceEnabled ? 'rotate-glow 3s linear infinite' : 'none',
       }}>
         <textarea
           ref={ref}
@@ -90,6 +94,26 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
               {guidanceEnabled ? 'Guidance on' : 'Guidance off'}
             </button>
           </Tooltip>
+
+          <style>{`
+            @keyframes rotate-glow {
+              0% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 6px 0 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              25% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 0 6px 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              50% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), -6px 0 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              75% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 0 -6px 14px 2px rgba(251, 191, 36, 0.3);
+              }
+              100% {
+                box-shadow: 0 0 0 1.5px #FBBF24, 0 0 8px 2px rgba(251, 191, 36, 0.7), 6px 0 14px 2px rgba(251, 191, 36, 0.3);
+              }
+            }
+          `}</style>
 
           {/* Send / Stop */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

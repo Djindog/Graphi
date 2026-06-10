@@ -6,6 +6,12 @@ interface Props {
   onSave: (key: string) => Promise<void>;
   onClose?: () => void;
   existingKey?: string;
+  referenceDetectionEnabled?: boolean;
+  onReferenceDetectionChange?: (enabled: boolean) => void;
+  driftDetectionEnabled?: boolean;
+  onDriftDetectionChange?: (enabled: boolean) => void;
+  gripLevel?: GripLevel;
+  onGripLevelChange?: (level: GripLevel) => void;
 }
 
 const GRIP_LEVELS: GripLevel[] = ['off', 'low', 'mid', 'high'];
@@ -24,9 +30,11 @@ const GRIP_DESCRIPTIONS: Record<GripLevel, string> = {
   high: 'Pulls up to 3 highly similar nodes, keeping context narrow.',
 };
 
-export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
-  const [tab, setTab] = useState<'api' | 'dev' | 'grip'>('api');
-  const { gripLevel, setGripLevel } = useGripStore();
+export function ApiKeyModal({ onSave, onClose, existingKey, referenceDetectionEnabled = true, onReferenceDetectionChange, driftDetectionEnabled = true, onDriftDetectionChange, gripLevel: externalGripLevel, onGripLevelChange }: Props) {
+  const [tab, setTab] = useState<'api' | 'dev' | 'guidance'>('api');
+  const { gripLevel: storeGripLevel, setGripLevel: storeSetGripLevel } = useGripStore();
+  const gripLevel = externalGripLevel ?? storeGripLevel;
+  const setGripLevel = onGripLevelChange ?? storeSetGripLevel;
   const [key, setKey] = useState(existingKey ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,21 +123,21 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
             API Key
           </button>
           <button
-            onClick={() => setTab('grip')}
+            onClick={() => setTab('guidance')}
             style={{
               padding: '10px 16px',
               fontSize: 14,
-              fontWeight: tab === 'grip' ? 600 : 400,
-              color: tab === 'grip' ? '#111827' : '#6B7280',
+              fontWeight: tab === 'guidance' ? 600 : 400,
+              color: tab === 'guidance' ? '#111827' : '#6B7280',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              borderBottom: tab === 'grip' ? '2px solid #2563EB' : 'none',
+              borderBottom: tab === 'guidance' ? '2px solid #2563EB' : 'none',
               marginBottom: '-1px',
               transition: 'color 0.15s',
             }}
           >
-            Grip
+            Guidance
           </button>
           <button
             onClick={() => setTab('dev')}
@@ -214,15 +222,127 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
           </div>
         )}
 
-        {/* Grip Tab */}
-        {tab === 'grip' && (
-          <div>
-            <div style={{ marginTop: 0 }}>
+        {/* Guidance Tab */}
+        {tab === 'guidance' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 300px)', maxHeight: 600 }}>
+            <div style={{ marginTop: 0, overflowY: 'auto', paddingRight: 8, flex: 1 }}>
               <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 16px' }}>
-                When guidance is on, Graphi searches other nodes for related context. Choose how aggressive the search should be.
+                Control which background intelligence features are enabled while you type.
               </p>
 
-              {/* Grip Level Radio Buttons */}
+              {/* Feature Toggles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                {/* Reference Detection Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 12px', background: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', margin: 0, display: 'block' }}>
+                      Reference Detection
+                    </label>
+                    <p style={{ fontSize: 12, color: '#6B7280', margin: '4px 0 0', lineHeight: 1.4 }}>
+                      Detect and highlight related nodes in your conversation
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onReferenceDetectionChange?.(!referenceDetectionEnabled)}
+                    style={{
+                      width: 44, height: 24, borderRadius: 12,
+                      background: referenceDetectionEnabled ? '#2563EB' : '#E5E7EB',
+                      border: 'none',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      padding: 2,
+                      transition: 'background 0.2s',
+                      flexShrink: 0,
+                      marginLeft: 12,
+                    }}
+                    onMouseEnter={e => {
+                      if (referenceDetectionEnabled) {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#1D4ED8';
+                      } else {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#D1D5DB';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (referenceDetectionEnabled) {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#2563EB';
+                      } else {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#E5E7EB';
+                      }
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 20, height: 20, borderRadius: 10,
+                        background: '#fff',
+                        position: 'absolute',
+                        transition: 'left 0.2s',
+                        left: referenceDetectionEnabled ? 22 : 2,
+                        top: 2,
+                      }}
+                    />
+                  </button>
+                </div>
+
+                {/* Drift Detection Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 12px', background: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', margin: 0, display: 'block' }}>
+                      Drift Detection
+                    </label>
+                    <p style={{ fontSize: 12, color: '#6B7280', margin: '4px 0 0', lineHeight: 1.4 }}>
+                      Detect off-topic shifts and suggest appropriate nodes
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onDriftDetectionChange?.(!driftDetectionEnabled)}
+                    style={{
+                      width: 44, height: 24, borderRadius: 12,
+                      background: driftDetectionEnabled ? '#2563EB' : '#E5E7EB',
+                      border: 'none',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      padding: 2,
+                      transition: 'background 0.2s',
+                      flexShrink: 0,
+                      marginLeft: 12,
+                    }}
+                    onMouseEnter={e => {
+                      if (driftDetectionEnabled) {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#1D4ED8';
+                      } else {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#D1D5DB';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (driftDetectionEnabled) {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#2563EB';
+                      } else {
+                        (e.currentTarget as HTMLButtonElement).style.background = '#E5E7EB';
+                      }
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 20, height: 20, borderRadius: 10,
+                        background: '#fff',
+                        position: 'absolute',
+                        transition: 'left 0.2s',
+                        left: driftDetectionEnabled ? 22 : 2,
+                        top: 2,
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Grip Level Settings */}
+              <p style={{ fontSize: 12, fontWeight: 500, color: '#374151', margin: '0 0 12px' }}>
+                Context Search Sensitivity
+              </p>
+              <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 12px' }}>
+                When reference detection is on, choose how many related nodes to suggest.
+              </p>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {GRIP_LEVELS.map(level => (
                   <label
@@ -293,7 +413,7 @@ export function ApiKeyModal({ onSave, onClose, existingKey }: Props) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
               {onClose && (
                 <button
                   onClick={onClose}
