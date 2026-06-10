@@ -434,7 +434,7 @@ export default function App() {
           onDoubleClick={() => { revealCanvas(); setGrabTooltip(false); if (grabTooltipTimer.current) clearTimeout(grabTooltipTimer.current); }}
           style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
         >
-          <div style={{ width: grabHovered ? 3 : 1, background: grabHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          <div style={{ width: grabHovered ? 4 : 2, background: grabHovered ? '#6B7280' : '#D1D5DB', transition: 'width 0.15s ease, background 0.15s ease', borderRadius: 2, boxShadow: grabHovered ? '0 0 8px rgba(0,0,0,0.15)' : 'none' }} />
           {grabTooltip && (
             <div style={{
               position: 'absolute', top: '50%', left: 'calc(100% + 10px)', transform: 'translateY(-50%)',
@@ -482,7 +482,7 @@ export default function App() {
           onDoubleClick={() => { setCanvasWidth(0); setDividerTooltip(false); if (dividerTooltipTimer.current) clearTimeout(dividerTooltipTimer.current); }}
           style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
         >
-          <div style={{ width: dividerHovered ? 3 : 1, background: dividerHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          <div style={{ width: dividerHovered ? 4 : 2, background: dividerHovered ? '#6B7280' : '#D1D5DB', transition: 'width 0.15s ease, background 0.15s ease', borderRadius: 2, boxShadow: dividerHovered ? '0 0 8px rgba(0,0,0,0.15)' : 'none' }} />
           {dividerTooltip && (
             <div style={{
               position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)',
@@ -513,7 +513,7 @@ export default function App() {
           onDoubleClick={() => { setChatPaneHidden(false); setChatPaneWidth(650); setChatPaneGrabTooltip(false); if (chatPaneGrabTooltipTimer.current) clearTimeout(chatPaneGrabTooltipTimer.current); }}
           style={{ width: 8, flexShrink: 0, cursor: 'col-resize', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
         >
-          <div style={{ width: chatPaneGrabHovered ? 3 : 1, background: chatPaneGrabHovered ? '#9CA3AF' : '#E5E7EB', transition: 'width 0.12s ease, background 0.12s ease', borderRadius: 2 }} />
+          <div style={{ width: chatPaneGrabHovered ? 4 : 2, background: chatPaneGrabHovered ? '#6B7280' : '#D1D5DB', transition: 'width 0.15s ease, background 0.15s ease', borderRadius: 2, boxShadow: chatPaneGrabHovered ? '0 0 8px rgba(0,0,0,0.15)' : 'none' }} />
           {chatPaneGrabTooltip && (
             <div style={{
               position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)',

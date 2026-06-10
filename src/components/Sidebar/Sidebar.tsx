@@ -6,6 +6,7 @@ import { useDagStore } from '../../stores/dagStore';
 import { useTutorialStore } from '../../stores/tutorialStore';
 import { NewProjectModal } from '../NewProjectModal';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { Tooltip } from '../Tooltip';
 import logoSvg from '../../assets/logo.svg';
 import type { Project } from '../../types';
 
@@ -147,15 +148,16 @@ export function Sidebar({
   if (collapsed) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 52, background: '#fff', borderRight: '1px solid #E5E7EB', height: '100%', padding: '14px 0', gap: 10, flexShrink: 0 }}>
-        <button
-          onClick={onToggle}
-          title="Expand"
-          style={{ color: '#6B7280', width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
-        >
-          <PanelLeft size={17} strokeWidth={1.9} />
-        </button>
+        <Tooltip placement="right" width={90} content="Expand sidebar">
+          <button
+            onClick={onToggle}
+            style={{ color: '#6B7280', width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
+          >
+            <PanelLeft size={17} strokeWidth={1.9} />
+          </button>
+        </Tooltip>
       </div>
     );
   }
@@ -170,15 +172,16 @@ export function Sidebar({
             <span style={{ fontSize: 16, fontWeight: 600, color: '#111827', letterSpacing: '-0.3px' }}>Graphi</span>
           </div>
           {!isTutorialActive && (
-            <button
-              onClick={onToggle}
-              title="Collapse"
-              style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
-            >
-              <PanelLeftClose size={16} strokeWidth={1.9} />
-            </button>
+            <Tooltip placement="bottom" width={90} content="Collapse sidebar">
+              <button
+                onClick={onToggle}
+                style={{ color: '#9CA3AF', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F9FAFB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
+              >
+                <PanelLeftClose size={16} strokeWidth={1.9} />
+              </button>
+            </Tooltip>
           )}
         </div>
 

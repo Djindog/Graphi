@@ -84,6 +84,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
                 fontWeight: guidanceEnabled ? 500 : 400,
                 transition: 'all 0.1s', fontFamily: 'inherit',
               }}
+              onFocus={e => { (e.currentTarget as HTMLButtonElement).style.outline = '2px solid #2563EB'; (e.currentTarget as HTMLButtonElement).style.outlineOffset = '2px'; }}
+              onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
             >
               {guidanceEnabled ? 'Guidance on' : 'Guidance off'}
             </button>
@@ -103,6 +105,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#111827'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#E5E7EB'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
+                onFocus={e => { (e.currentTarget as HTMLButtonElement).style.outline = '2px solid #2563EB'; (e.currentTarget as HTMLButtonElement).style.outlineOffset = '2px'; }}
+                onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
               >
                 <StopIcon />
               </button>
@@ -119,6 +123,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, Props>(
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0, transition: 'background 0.15s',
               }}
+              onFocus={e => { if (canSend) { (e.currentTarget as HTMLButtonElement).style.outline = '2px solid #2563EB'; (e.currentTarget as HTMLButtonElement).style.outlineOffset = '2px'; } }}
+              onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
             >
               {isGenerating ? <Spinner /> : <ArrowUp size={17} strokeWidth={2.4} />}
             </button>

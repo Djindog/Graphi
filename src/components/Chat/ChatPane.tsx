@@ -58,6 +58,8 @@ function isLikelyLowIntentInput(text: string): boolean {
 
 export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { width?: number; groqClient: InstanceType<typeof Groq> | null; canvasHidden?: boolean }) {
   const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const prevNodeIdRef = useRef<string | null>(null);
 
   // When dev mode is ON: use lowered threshold; OFF: use production threshold (15)
   const REMINDER_THRESHOLD = devMode
@@ -292,6 +294,15 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     const ancestors = getAllAncestors(currentNodeId);
     initContext(ancestors.map(a => a.id));
   }, [currentNodeId, getAllAncestors, initContext]);
+
+  useEffect(() => {
+    if (currentNodeId && prevNodeIdRef.current && currentNodeId !== prevNodeIdRef.current) {
+      setIsLoadingMessages(true);
+      const timer = setTimeout(() => setIsLoadingMessages(false), 200);
+      return () => clearTimeout(timer);
+    }
+    prevNodeIdRef.current = currentNodeId;
+  }, [currentNodeId]);
 
   useEffect(() => {
     if (!isGenerating && inputRef.current) {
@@ -598,7 +609,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
             <MousePointerClick size={32} strokeWidth={1.5} />
           </div>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Select a node</p>
-          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Click any node on the canvas to open its thread.</p>
+          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Click any node on the canvas to open it.</p>
         </div>
       </div>
     );
@@ -716,6 +727,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
               ref={messageListRef}
               messages={messages}
               isGenerating={isGenerating}
+              isLoadingMessages={isLoadingMessages}
               contextPadding={allContextIds.length > 0 ? contextH + 8 : 0}
               scrollContainerRef={messageScrollRef}
               onEditMessage={handleEditSend}
@@ -794,7 +806,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   onClick={() => handleSideButtonClick('left')}
                   style={{
                     width: 34, height: 34, borderRadius: '50%',
-                    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+                    border: '1px solid #E5E7EB', background: sidePopup.isEdge ? '#F0F9FF' : '#fff', color: sidePopup.isEdge ? '#2563EB' : '#374151',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.15s',
                     boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
@@ -806,7 +818,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.borderColor = '#E5E7EB';
-                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.color = sidePopup.isEdge ? '#2563EB' : '#374151';
                     e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.12)';
                   }}
                 >
@@ -824,7 +836,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   onClick={() => handleSideButtonClick('right')}
                   style={{
                     width: 34, height: 34, borderRadius: '50%',
-                    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+                    border: '1px solid #E5E7EB', background: sidePopup.isEdge ? '#F0F9FF' : '#fff', color: sidePopup.isEdge ? '#2563EB' : '#374151',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.15s',
                     boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
@@ -836,7 +848,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.borderColor = '#E5E7EB';
-                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.color = sidePopup.isEdge ? '#2563EB' : '#374151';
                     e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.12)';
                   }}
                 >
