@@ -418,6 +418,7 @@ export default function App() {
           rootNodeId={activeProject?.rootNodeId ?? null}
           projects={projects}
           onProjectCreated={handleProjectCreated}
+          groqClient={groqClient}
         />
       </div>
 

@@ -10,12 +10,16 @@ import { ForceCanvas } from './ForceCanvas';
 import { NodeToolOverlay } from './NodeToolOverlay';
 import { Tooltip } from '../Tooltip';
 import type { Node, Project } from '../../types';
+import type Groq from 'groq-sdk';
+
+type GroqClient = InstanceType<typeof Groq>;
 
 interface Props {
   nodes: Node[];
   rootNodeId: string | null;
   projects: Project[];
   onProjectCreated: (project: Project) => void;
+  groqClient: GroqClient | null;
 }
 
 interface RenameTarget {
@@ -27,7 +31,7 @@ interface RenameTarget {
   height: number;
 }
 
-export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
+export function Canvas({ nodes, rootNodeId, projects, onProjectCreated, groqClient }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
   const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages, hoveredSuggestedNodeId } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
@@ -447,6 +451,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           onDangerHover={setDangerNodeIds}
           onRenameRequest={handleRenameRequest}
           onProjectCreated={onProjectCreated}
+          groqClient={groqClient}
         />
       )}
 

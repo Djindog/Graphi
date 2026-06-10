@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { GitFork, Pencil, Scissors, Trash2, Minimize2, Maximize2, ChevronRight } from 'lucide-react';
+import { GitFork, GitMerge, Pencil, Scissors, Trash2, Minimize2, Maximize2, ChevronRight } from 'lucide-react';
 import { useDagStore } from '../../stores/dagStore';
 import { useChatStore } from '../../stores/chatStore';
 import { NewProjectModal } from '../NewProjectModal';
 import { ConfirmDialog } from '../ConfirmDialog';
 import type { Node, Project } from '../../types';
 import { supabase } from '../../lib/supabase';
+import { generateMergeSynthesis } from '../../lib/groq';
 import { v4 as uuidv4 } from 'uuid';
+import type Groq from 'groq-sdk';
+
+type GroqClient = InstanceType<typeof Groq>;
 
 interface Props {
   node: Node;
@@ -21,15 +25,17 @@ interface Props {
   onDangerHover: (ids: string[]) => void;
   onRenameRequest: (node: Node) => void;
   onProjectCreated: (project: Project) => void;
+  groqClient: GroqClient | null;
 }
 
 
-export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
+export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated, groqClient }: Props) {
   const { addNode, deleteNode, getDescendants, getAllAncestors, nodes } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
   const [transplantOpen, setTransplantOpen] = useState(false);
   const [newProjectModal, setNewProjectModal] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ action: 'prune' | null }>({ action: null });
   const ref = useRef<HTMLDivElement>(null);
 
@@ -42,6 +48,37 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
   }, [onClose]);
 
   const isRoot = node.id === rootNodeId;
+  const currentNode = currentNodeId ? nodes.find(n => n.id === currentNodeId) ?? null : null;
+  const canMergeWithCurrent = !!currentNode && currentNode.id !== node.id && currentNode.projectId === node.projectId;
+
+  const getAncestorChain = (nodeId: string): Node[] => {
+    const map = new Map(nodes.map(n => [n.id, n]));
+    const chain: Node[] = [];
+    let cur = map.get(nodeId);
+    while (cur) {
+      chain.push(cur);
+      cur = cur.parentId ? map.get(cur.parentId) : undefined;
+    }
+    return chain;
+  };
+
+  const getLowestCommonAncestor = (aId: string, bId: string): Node | null => {
+    const aChain = getAncestorChain(aId);
+    const bIds = new Set(getAncestorChain(bId).map(n => n.id));
+    return aChain.find(n => bIds.has(n.id)) ?? null;
+  };
+
+  const formatMessages = async (nodeId: string): Promise<string> => {
+    const { data } = await supabase
+      .from('messages')
+      .select('role, content, createdAt')
+      .eq('nodeId', nodeId)
+      .order('createdAt', { ascending: true });
+
+    return ((data ?? []) as { role: string; content: string }[])
+      .map(m => `${m.role}: ${m.content}`)
+      .join('\n');
+  };
 
   const branch = async () => {
     const ancestors = getAllAncestors(node.id).map(n => n.id);
@@ -69,6 +106,66 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
   const prune = async () => {
     if (isRoot) return;
     setConfirmDialog({ action: 'prune' });
+  };
+
+  const mergeWithCurrent = async () => {
+    if (!canMergeWithCurrent || !currentNode || merging) return;
+    setMerging(true);
+    try {
+      const parent = getLowestCommonAncestor(node.id, currentNode.id);
+      const leftMessages = await formatMessages(currentNode.id);
+      const rightMessages = await formatMessages(node.id);
+      const synthesis = await generateMergeSynthesis(
+        {
+          title: currentNode.title || 'Untitled',
+          summary: currentNode.summary,
+          content: currentNode.content,
+          messages: leftMessages,
+        },
+        {
+          title: node.title || 'Untitled',
+          summary: node.summary,
+          content: node.content,
+          messages: rightMessages,
+        },
+        groqClient
+      );
+
+      const mergedNode = await addNode(synthesis.title, parent?.id ?? rootNodeId ?? null, node.projectId);
+      const now = new Date().toISOString();
+      const mergeMessageId = uuidv4();
+
+      await supabase
+        .from('nodes')
+        .update({
+          title: synthesis.title,
+          content: synthesis.content,
+          summary: synthesis.summary,
+          updatedAt: now,
+        })
+        .eq('id', mergedNode.id);
+
+      useDagStore.setState(s => ({
+        nodes: s.nodes.map(n =>
+          n.id === mergedNode.id
+            ? { ...n, title: synthesis.title, content: synthesis.content, summary: synthesis.summary, updatedAt: now }
+            : n
+        ),
+      }));
+
+      await supabase.from('messages').insert({
+        id: mergeMessageId,
+        nodeId: mergedNode.id,
+        role: 'assistant',
+        content: synthesis.content,
+        createdAt: now,
+      });
+
+      await setCurrentNode(mergedNode.id);
+      onClose();
+    } finally {
+      setMerging(false);
+    }
   };
 
   const executePrune = async () => {
@@ -167,6 +264,11 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
         <>
           <Btn icon={<GitFork size={13} />} onClick={branch}>Branch</Btn>
           <Btn icon={<Pencil size={13} />} onClick={() => onRenameRequest(node)}>Rename</Btn>
+          {canMergeWithCurrent && (
+            <Btn icon={<GitMerge size={13} />} onClick={mergeWithCurrent} disabled={merging}>
+              {merging ? 'Merging...' : 'Merge with current'}
+            </Btn>
+          )}
           {isFolded
             ? <Btn icon={<Maximize2 size={13} />} onClick={onUnfold}>Unfold</Btn>
             : <Btn icon={<Minimize2 size={13} />} onClick={onFold} disabled={isRoot}>Fold</Btn>

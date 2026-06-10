@@ -28,6 +28,31 @@ A branching chat app. The canvas is a tree of **nodes**, where each node is a ch
 | **Prune** | Delete this node and all descendants |
 | **Rename** | Click `···` → Rename; node title becomes an inline input |
 | **Transplant** | Deep-copy this subtree to another project |
+| **Merge** | Create a new merged node from the currently selected node and another node |
+
+### Merge Nodes
+
+Merge is a soft merge: it does not delete or rewrite either source node.
+
+How to use:
+
+1. Select the first node on the canvas. This becomes the **current** node.
+2. Open the `...` menu on a different node in the same project.
+3. Click **Merge with current**.
+4. Graphi creates a new merged node and navigates to it.
+
+Placement rule:
+
+- The merged node is attached under the two source nodes' lowest common ancestor.
+- If no common ancestor can be resolved, it falls back to the project root.
+- This keeps each project as one tree instead of creating detached orphan nodes.
+
+What gets saved:
+
+- The original nodes are preserved.
+- The merged node receives a generated title, summary, and content.
+- The merged content is also saved as the first assistant message in the new node.
+- The merge synthesis uses each source node's title, summary, content, and messages.
 
 ---
 

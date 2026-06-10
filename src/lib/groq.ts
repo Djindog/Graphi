@@ -39,6 +39,84 @@ export async function generateTitle(userMessage: string, assistantResponse: stri
   }
 }
 
+export interface MergeSynthesis {
+  title: string;
+  summary: string;
+  content: string;
+}
+
+export async function generateMergeSynthesis(
+  left: { title: string; summary?: string | null; content?: string | null; messages: string },
+  right: { title: string; summary?: string | null; content?: string | null; messages: string },
+  client: GroqClient | null | undefined = groqClient
+): Promise<MergeSynthesis> {
+  const fallbackTitle = `Merge ${left.title} ${right.title}`.slice(0, 80);
+  const fallbackContent = [
+    `Merged from: ${left.title} + ${right.title}`,
+    '',
+    `## ${left.title}`,
+    left.summary || left.content || left.messages || '(no content)',
+    '',
+    `## ${right.title}`,
+    right.summary || right.content || right.messages || '(no content)',
+  ].join('\n');
+
+  if (!client) {
+    return {
+      title: fallbackTitle,
+      summary: `Merged thread combining ${left.title} and ${right.title}.`,
+      content: fallbackContent,
+    };
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You merge two branching chat nodes into one coherent continuation. Return JSON only: {"title":"2-5 words","summary":"2 concise sentences","content":"a structured synthesis with shared points, tensions, and next steps"}. Preserve uncertainty. Do not invent facts.',
+        },
+        {
+          role: 'user',
+          content: `Node A
+Title: ${left.title}
+Summary: ${left.summary || '(empty)'}
+Content: ${left.content || '(empty)'}
+Messages:
+${left.messages || '(none)'}
+
+Node B
+Title: ${right.title}
+Summary: ${right.summary || '(empty)'}
+Content: ${right.content || '(empty)'}
+Messages:
+${right.messages || '(none)'}
+
+Create a useful merged node that lets the user continue from both branches.`,
+        },
+      ],
+      max_tokens: 900,
+      response_format: { type: 'json_object' },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}');
+    return {
+      title: String(parsed.title || fallbackTitle).trim().slice(0, 80),
+      summary: String(parsed.summary || `Merged thread combining ${left.title} and ${right.title}.`).trim(),
+      content: String(parsed.content || fallbackContent).trim(),
+    };
+  } catch {
+    return {
+      title: fallbackTitle,
+      summary: `Merged thread combining ${left.title} and ${right.title}.`,
+      content: fallbackContent,
+    };
+  }
+}
+
 export async function detectReferences(message: string, nodes: Node[], client: GroqClient | null | undefined = groqClient): Promise<string[]> {
   if (!client || !nodes.length || !message.trim()) return [];
   const nodeList = nodes
