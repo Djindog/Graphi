@@ -168,8 +168,8 @@ export function Sidebar({
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 14px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <img src={logoSvg} alt="Graphi" style={{ width: 32, height: 32, flexShrink: 0 }} />
-            <span style={{ fontSize: 16, fontWeight: 600, color: '#111827', letterSpacing: '-0.3px' }}>Graphi</span>
+            <img src={logoSvg} alt="Graphi" style={{ width: 26, height: 26, flexShrink: 0 }} />
+            <span style={{ fontSize: 20, fontWeight: 600, color: '#111827', letterSpacing: '-0.3px' }}>Graphi</span>
           </div>
           {!isTutorialActive && (
             <Tooltip placement="bottom" width={90} content="Collapse sidebar">
@@ -246,7 +246,7 @@ export function Sidebar({
                 ) : (
                   <>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
-                      {pinnedProjects.has(p.id) && <Pin size={11} strokeWidth={2} color="#F59E0B" style={{ flexShrink: 0 }} />}
+                      {pinnedProjects.has(p.id) && <Pin size={11} strokeWidth={2} color="#2563EB" style={{ flexShrink: 0 }} />}
                       {p.name}
                     </span>
                     <button

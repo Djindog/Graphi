@@ -29,7 +29,7 @@ interface RenameTarget {
 
 export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
-  const { activeContextNodeIds, deactivatedNodeIds, toggleNodeActive, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages, hoveredSuggestedNodeId } = useChatStore();
+  const { activeContextNodeIds, deactivatedNodeIds, lockedActiveIds, lockedDeactivatedIds, toggleNodeActive, toggleLock, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages, hoveredSuggestedNodeId } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
   const [devMode, setDevMode] = useState(() => localStorage.getItem('graphi_dev_mode') === 'true');
   const [showStage0Result, setShowStage0Result] = useState(false);
@@ -412,6 +412,8 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           deactivatedNodeIds={contextDisplayMode ? deactivatedNodeIds : []}
           lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
+          lockedActiveIds={contextDisplayMode ? lockedActiveIds : []}
+          lockedDeactivatedIds={contextDisplayMode ? lockedDeactivatedIds : []}
           foldedCountMap={foldedCountMap}
           hoveredNodeId={hoveredSuggestedNodeId}
           onNodeClick={handleNodeClick}
@@ -419,6 +421,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           onNodeDoubleClick={handleNodeDoubleClick}
           onNodeMenuClick={handleNodeMenuClick}
           onNodeBadgeClick={handleNodeBadgeClick}
+          onToggleLock={toggleLock}
         />
       ) : (
         <ForceCanvas

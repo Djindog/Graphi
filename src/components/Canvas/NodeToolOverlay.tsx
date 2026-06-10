@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { GitFork, Pencil, Scissors, Trash2, Minimize2, Maximize2, ChevronRight } from 'lucide-react';
+import { GitFork, Pencil, Scissors, Trash2, Minimize2, Maximize2, ChevronRight, Unlink } from 'lucide-react';
 import { useDagStore } from '../../stores/dagStore';
 import { useChatStore } from '../../stores/chatStore';
 import { NewProjectModal } from '../NewProjectModal';
@@ -25,9 +25,12 @@ interface Props {
 
 
 export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
-  const { addNode, deleteNode, deleteSubtree, getDescendants, getAllAncestors, nodes, pushUndoSnapshot } = useDagStore();
+  const { addNode, deleteNode, deleteSubtree, getDescendants, getAllAncestors, nodes, pushUndoSnapshot, setOrphan } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
+
+  const isLeaf = !nodes.some(n => n.parentId === node.id);
+  const isOrphan = !!node.isOrphan;
   const [transplantOpen, setTransplantOpen] = useState(false);
   const [newProjectModal, setNewProjectModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ action: 'prune' | null }>({ action: null });
@@ -167,7 +170,7 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
         </div>
       ) : (
         <>
-          <Btn icon={<GitFork size={13} />} onClick={branch} dataTutorial="branch-btn">Branch</Btn>
+          {!isOrphan && <Btn icon={<GitFork size={13} />} onClick={branch} dataTutorial="branch-btn">Branch</Btn>}
           <Btn icon={<Pencil size={13} />} onClick={() => onRenameRequest(node)}>Rename</Btn>
           {isFolded
             ? <Btn icon={<Maximize2 size={13} />} onClick={onUnfold} dataTutorial="unfold-btn">Unfold</Btn>
@@ -182,6 +185,18 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
             onMouseEnter={() => onDangerHover([node.id, ...getDescendants(node.id).map(n => n.id)])}
             onMouseLeave={() => onDangerHover([])}
           >Delete Subtree</Btn>
+          {isLeaf && (
+            <>
+              <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
+              <Btn
+                icon={<Unlink size={13} />}
+                onClick={() => { setOrphan(node.id, !isOrphan); onClose(); }}
+                muted
+              >
+                {isOrphan ? 'Un-orphan' : 'Orphan'}
+              </Btn>
+            </>
+          )}
           <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
           <Btn icon={<ChevronRight size={13} />} onClick={() => setTransplantOpen(true)} muted>Transplant</Btn>
         </>

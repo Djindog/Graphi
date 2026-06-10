@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
-import { useCanvasStore } from '../../stores/canvasStore';
 import type { Node } from '../../types';
 
 interface Props {
@@ -56,7 +55,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId: _hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -65,10 +64,9 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
   const dragStateRef = useRef<{ startX: number; startY: number } | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
-  const navigationTrigger = useCanvasStore(s => s.navigationTrigger);
-  const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
 
-  const [hoveredNode, setHoveredNode] = useState<{ id: string; screenX: number; screenY: number } | null>(null);
+
+  const centerOnRootRef = useRef<() => void>(() => {});
 
   // Keep latest callbacks in refs so event handlers always call the current version
   const onNodeClickRef = useRef(onNodeClick);
@@ -81,6 +79,22 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
   useEffect(() => { onNodeDoubleClickRef.current = onNodeDoubleClick; }, [onNodeDoubleClick]);
   useEffect(() => { onNodeMenuClickRef.current = onNodeMenuClick; }, [onNodeMenuClick]);
   useEffect(() => { onNodeBadgeClickRef.current = onNodeBadgeClick; }, [onNodeBadgeClick]);
+
+  const centerOnRoot = useCallback(() => {
+    if (!svgRef.current || !zoomRef.current) return;
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const rootNode = nodes.find(n => !n.parentId || !nodeIds.has(n.parentId));
+    if (!rootNode) return;
+    const simRoot = simNodesRef.current.find(sn => sn.id === rootNode.id);
+    if (!simRoot || simRoot.x === undefined || simRoot.y === undefined) return;
+    const svg = svgRef.current;
+    const k = d3.zoomTransform(svg).k;
+    const newX = svg.clientWidth / 2 - k * simRoot.x;
+    const newY = svg.clientHeight / 2 - k * simRoot.y;
+    const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
+    d3.select(svg).call(zoomRef.current.transform, newTransform);
+  }, [nodes]);
+  centerOnRootRef.current = centerOnRoot;
 
   // Effect 1: Setup simulation and SVG when nodes array changes
   useEffect(() => {
@@ -159,12 +173,15 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
     svg.call(zoom);
     zoomRef.current = zoom;
 
-    // Right-click drag for panning
+    // Background drag (right-click) for panning; left-click on background centers root
     let isPanning = false;
     svg.on('mousedown', (event: MouseEvent) => {
-      if (event.button === 2) { // right-click
+      const isBackground = !(event.target as Element).closest('.node');
+
+      if (event.button === 2) { // right-click drag
         event.preventDefault();
         isPanning = true;
+        let hasDragged = false;
         dragStateRef.current = { startX: event.clientX, startY: event.clientY };
         const startTransform = d3.zoomTransform(svgRef.current!);
 
@@ -172,6 +189,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
           if (!isPanning || !dragStateRef.current) return;
           const dx = moveEvent.clientX - dragStateRef.current.startX;
           const dy = moveEvent.clientY - dragStateRef.current.startY;
+          if (!hasDragged && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) hasDragged = true;
           const newTransform = startTransform.translate(dx, dy);
           d3.select(svgRef.current as SVGSVGElement).call(zoom.transform, newTransform);
         };
@@ -181,6 +199,23 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
           dragStateRef.current = null;
           document.removeEventListener('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      } else if (event.button === 0 && isBackground) { // left-click on background
+        let hasDragged = false;
+        const startX = event.clientX;
+        const startY = event.clientY;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+          if (Math.abs(moveEvent.clientX - startX) > 3 || Math.abs(moveEvent.clientY - startY) > 3) hasDragged = true;
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          if (!hasDragged) centerOnRootRef.current();
         };
 
         document.addEventListener('mousemove', onMouseMove);
@@ -381,32 +416,27 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       evt.stopPropagation();
     });
 
-    nodeGroup.on('mouseover', (evt) => {
-      const pos = d3.select(evt.currentTarget).datum() as SimNode;
-      const rect = containerRef.current!.getBoundingClientRect();
-      const transform = d3.zoomTransform(svgRef.current!);
-      const sx = rect.left + transform.applyX(pos.x ?? 0);
-      const sy = rect.top + transform.applyY(pos.y ?? 0);
-      setHoveredNode({ id: pos.id, screenX: sx, screenY: sy });
-    })
-      .on('mouseout', () => setHoveredNode(null))
-      .on('click', (evt, d) => {
+    // Note: right-click menu is handled by mousedown event above
+
+    nodeGroup.on('click', (evt, d) => {
         evt.stopPropagation();
         const nodeData = nodeMapRef.current.get(d.id);
         if (!nodeData) return;
 
+        if (evt.ctrlKey || evt.metaKey) {
+          if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+          onNodeCtrlClickRef.current(nodeData);
+          return;
+        }
+
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
-          setNavigationTrigger('double-click');
           onNodeDoubleClickRef.current(d.id);
         } else {
-          const isCtrl = evt.ctrlKey || evt.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            setNavigationTrigger('single-click');
-            if (isCtrl) onNodeCtrlClickRef.current(nodeData);
-            else onNodeClickRef.current(nodeData);
+            onNodeClickRef.current(nodeData);
           }, 220);
           timers.push(clickTimer);
         }
@@ -458,7 +488,6 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       const isActive = activeContextNodeIds.includes(nodeId);
       const isDeactivated = deactivatedNodeIds.includes(nodeId);
       const inDanger = dangerNodeIds.includes(nodeId);
-      const isHovered = nodeId === hoveredNodeId;
 
       let fill = '#FFFFFF';
       let stroke = GRAY;
@@ -467,9 +496,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       let glow = false;
       let textColor = '#6B7280';
 
-      if (isHovered) {
-        fill = 'rgb(254, 243, 199)'; stroke = 'rgb(217, 119, 6)'; strokeWidth = 3; textColor = 'rgb(120, 53, 15)';
-      } else if (inDanger) {
+      if (inDanger) {
         fill = '#FEF2F2'; stroke = '#FCA5A5'; strokeWidth = 2; opacity = 1; textColor = '#EF4444';
       } else if (isSelected) {
         fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 3.5; opacity = 1; glow = true; textColor = '#1D4ED8';
@@ -524,98 +551,13 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
     svg.select('#arrowhead polygon')
       .attr('fill', GRAY);
 
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId]);
-
-  // Effect 3: Handle navigation-triggered panning (for Force layout)
-  useEffect(() => {
-    if (!activeNodeId || !navigationTrigger || !svgRef.current || !zoomRef.current) return;
-
-    const simNode = simNodesRef.current.find(sn => sn.id === activeNodeId);
-    if (!simNode || simNode.x === undefined || simNode.y === undefined) return;
-
-    const svg = svgRef.current;
-    const k = d3.zoomTransform(svg).k;
-
-    if (navigationTrigger === 'double-click') {
-      // Center on node
-      const newX = svg.clientWidth / 2 - k * simNode.x;
-      const newY = svg.clientHeight / 2 - k * simNode.y;
-      const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
-      d3.select(svg).call(zoomRef.current.transform, newTransform);
-      setNavigationTrigger(null);
-    } else if (navigationTrigger === 'arrow' || navigationTrigger === 'button') {
-      // Center only if node is outside viewport
-      const transform = d3.zoomTransform(svg);
-      const screenX = transform.applyX(simNode.x);
-      const screenY = transform.applyY(simNode.y);
-      const nodeRadius = NODE_RADIUS * k;
-      const padding = 10;
-
-      const isVisible = (
-        screenX - nodeRadius >= padding &&
-        screenX + nodeRadius <= svg.clientWidth - padding &&
-        screenY - nodeRadius >= padding &&
-        screenY + nodeRadius <= svg.clientHeight - padding
-      );
-
-      if (!isVisible) {
-        const newX = svg.clientWidth / 2 - k * simNode.x;
-        const newY = svg.clientHeight / 2 - k * simNode.y;
-        const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
-        d3.select(svg).call(zoomRef.current.transform, newTransform);
-      }
-      setNavigationTrigger(null);
-    } else if (navigationTrigger === 'single-click') {
-      setNavigationTrigger(null);
-    }
-  }, [activeNodeId, navigationTrigger, setNavigationTrigger]);
-
-  const hoveredNodeObj = hoveredNode ? nodes.find(n => n.id === hoveredNode.id) : null;
-
-  const getHoveredFill = () => {
-    if (!hoveredNode) return '#fff';
-    const id = hoveredNode.id;
-    const inDanger = dangerNodeIds.includes(id);
-    if (inDanger) return '#FEF2F2';
-    if (id === activeNodeId) return '#EFF6FF';
-    if (activeContextNodeIds.includes(id)) return '#EFF6FF';
-    if (deactivatedNodeIds.includes(id)) return '#F9FAFB';
-    return '#FFFFFF';
-  };
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }} onContextMenu={e => e.preventDefault()}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
       </div>
-      {hoveredNode && hoveredNodeObj && (
-        <button
-          onMouseEnter={() => { /* keep visible */ }}
-          onClick={(e) => {
-            e.stopPropagation();
-            const r = NODE_RADIUS * 2;
-            onNodeMenuClickRef.current(hoveredNodeObj, hoveredNode.screenX + 16, hoveredNode.screenY - 8, hoveredNode.screenX - NODE_RADIUS, hoveredNode.screenY - NODE_RADIUS, r, r);
-          }}
-          style={{
-            position: 'fixed',
-            left: hoveredNode.screenX + 8,
-            top: hoveredNode.screenY - 14,
-            zIndex: 50,
-            background: getHoveredFill(),
-            border: '1px solid #E5E7EB',
-            borderRadius: 6,
-            padding: '2px 6px',
-            fontSize: 12,
-            letterSpacing: '1.5px',
-            color: '#6B7280',
-            cursor: 'pointer',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            lineHeight: 1.4,
-          }}
-        >
-          ···
-        </button>
-      )}
     </div>
   );
 }

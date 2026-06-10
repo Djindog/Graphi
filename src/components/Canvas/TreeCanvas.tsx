@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
-import { useCanvasStore } from '../../stores/canvasStore';
 import { useDagStore } from '../../stores/dagStore';
 import type { Node } from '../../types';
 
@@ -14,6 +13,10 @@ function createMinimize2Icon(offsetX: number, offsetY: number): string[] {
   ];
 }
 
+// Lock icon SVG paths (lucide, 24×24 viewBox)
+const LOCK_SHACKLE_CLOSED = 'M7 11V7a5 5 0 0 1 10 0v4';
+const LOCK_SHACKLE_OPEN   = 'M7 11V7a5 5 0 0 1 9.9-1';
+
 interface Props {
   nodes: Node[];
   activeNodeId: string | null;
@@ -21,6 +24,8 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
+  lockedActiveIds: string[];
+  lockedDeactivatedIds: string[];
   foldedCountMap: Map<string, number>;
   hoveredNodeId?: string | null;
   onNodeClick: (node: Node) => void;
@@ -28,6 +33,7 @@ interface Props {
   onNodeDoubleClick: (nodeId: string) => void;
   onNodeMenuClick: (node: Node, screenX: number, screenY: number, nodeScreenX: number, nodeScreenY: number, nodeWidth: number, nodeHeight: number) => void;
   onNodeBadgeClick: (nodeId: string) => void;
+  onToggleLock: (nodeId: string) => void;
 }
 
 const NODE_W = 168;
@@ -74,7 +80,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, lockedActiveIds, lockedDeactivatedIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick, onToggleLock }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const treeDataRef = useRef<{ nodes: Map<string, { x: number; y: number }>; width: number; height: number } | null>(null);
@@ -84,8 +90,9 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const reorderStateRef = useRef<{ draggingNodeId: string | null; dropTargetIndex: number | null; elevation: number }>({ draggingNodeId: null, dropTargetIndex: null, elevation: 0 });
   const justDroppedNodeIdRef = useRef<string | null>(null);
 
-  const navigationTrigger = useCanvasStore(s => s.navigationTrigger);
-  const setNavigationTrigger = useCanvasStore(s => s.setNavigationTrigger);
+
+  const orphanNodeIdsRef = useRef<Set<string>>(new Set());
+  orphanNodeIdsRef.current = new Set(nodes.filter(n => n.isOrphan).map(n => n.id));
 
   // Stable refs for visual state — Effect 2 reads these without re-running Effect 1
   const activeNodeIdRef = useRef(activeNodeId);
@@ -94,6 +101,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const lineageNodeIdsRef = useRef(lineageNodeIds);
   const dangerNodeIdsRef = useRef(dangerNodeIds);
   const hoveredNodeIdRef = useRef(hoveredNodeId);
+  const lockedActiveIdsRef = useRef(lockedActiveIds);
+  const lockedDeactivatedIdsRef = useRef(lockedDeactivatedIds);
 
   // Stable refs for callbacks — prevents Effect 1 from re-running when Canvas re-renders
   const onNodeClickRef = useRef(onNodeClick);
@@ -101,6 +110,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
   const onNodeMenuClickRef = useRef(onNodeMenuClick);
   const onNodeBadgeClickRef = useRef(onNodeBadgeClick);
+  const onToggleLockRef = useRef(onToggleLock);
+  const centerOnRootRef = useRef<() => void>(() => {});
 
   // Keep refs in sync every render
   activeNodeIdRef.current = activeNodeId;
@@ -109,11 +120,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   lineageNodeIdsRef.current = lineageNodeIds;
   dangerNodeIdsRef.current = dangerNodeIds;
   hoveredNodeIdRef.current = hoveredNodeId;
+  lockedActiveIdsRef.current = lockedActiveIds;
+  lockedDeactivatedIdsRef.current = lockedDeactivatedIds;
   onNodeClickRef.current = onNodeClick;
   onNodeCtrlClickRef.current = onNodeCtrlClick;
   onNodeDoubleClickRef.current = onNodeDoubleClick;
   onNodeMenuClickRef.current = onNodeMenuClick;
   onNodeBadgeClickRef.current = onNodeBadgeClick;
+  onToggleLockRef.current = onToggleLock;
 
   // Called by both effects: derives node visual style from current refs
   const getNodeStyle = useCallback((nodeId: string) => {
@@ -155,43 +169,22 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     return                                         { stroke: BLUE,       strokeWidth: 2,   opacity: 1   };
   }, []); // stable — reads from refs, no deps
 
-  const isNodeFullyVisible = useCallback((nodeId: string): boolean => {
-    if (!svgRef.current || !treeDataRef.current) return false;
-    const nodePos = treeDataRef.current.nodes.get(nodeId);
-    if (!nodePos) return false;
-
-    const svg = svgRef.current;
-    const transform = d3.zoomTransform(svg);
-    const screenX = transform.applyX(nodePos.x);
-    const screenY = transform.applyY(nodePos.y);
-
-    const padding = 10; // pixels of buffer
-    const nodeW = (expandedWidth(nodes.find(n => n.id === nodeId)?.title ?? null) || NODE_W) * transform.k;
-    const nodeH = NODE_H * transform.k;
-
-    return (
-      screenX - nodeW / 2 >= padding &&
-      screenX + nodeW / 2 <= svg.clientWidth - padding &&
-      screenY - nodeH / 2 >= padding &&
-      screenY + nodeH / 2 <= svg.clientHeight - padding
-    );
-  }, [nodes]);
-
-  const centerOnNode = useCallback((nodeId: string) => {
+  const centerOnRoot = useCallback(() => {
     if (!svgRef.current || !treeDataRef.current || !zoomRef.current) return;
-    const nodePos = treeDataRef.current.nodes.get(nodeId);
-    if (!nodePos || nodePos.x === undefined || nodePos.y === undefined) return;
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const rootNode = nodes.find(n => !n.parentId || !nodeIds.has(n.parentId));
+    if (!rootNode) return;
+    const rootPos = treeDataRef.current.nodes.get(rootNode.id);
+    if (!rootPos) return;
 
     const svg = svgRef.current;
     const k = d3.zoomTransform(svg).k;
-
-    // Center node: screenX = k * nodeX + x, so x = screenX - k * nodeX
-    const newX = svg.clientWidth / 2 - k * nodePos.x;
-    const newY = svg.clientHeight / 2 - k * nodePos.y;
+    const newX = svg.clientWidth / 2 - k * rootPos.x;
+    const newY = svg.clientHeight / 2 - k * rootPos.y;
     const newTransform = new (d3.ZoomTransform as any)(k, newX, newY);
-
     d3.select(svg).call(zoomRef.current.transform, newTransform);
-  }, []);
+  }, [nodes]);
+  centerOnRootRef.current = centerOnRoot;
 
   // ── Effect 1: structure + layout ──────────────────────────────────────────
   // Runs only when node structure or fold state changes.
@@ -271,6 +264,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         if (hasDragged) {
           // suppress the click event that would fire after mouseup
           window.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+        } else if (event.button === 0 && isLeftClickOnBackground) {
+          centerOnRootRef.current();
         }
       };
 
@@ -317,11 +312,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
     // Edges — tagged with source/target IDs for Effect 2 to restyle
     treeData.links().forEach(link => {
+      const tgtId = (link.target.data as TreeNode).data.id;
+      // Skip edges to orphan nodes — they appear visually disconnected
+      if (orphanNodeIdsRef.current.has(tgtId)) return;
+
       const sx = link.source.x, sy = link.source.y + NODE_H / 2;
       const tx = link.target.x, ty = link.target.y - NODE_H / 2;
       const midY = sy + (ty - sy) * 0.5;
       const srcId = (link.source.data as TreeNode).data.id;
-      const tgtId = (link.target.data as TreeNode).data.id;
       const es = getEdgeStyle(srcId, tgtId);
 
       const pathD = `M${sx},${sy} C${sx},${midY} ${tx},${midY} ${tx},${ty}`;
@@ -363,12 +361,14 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
           .attr('filter', 'url(#blue-glow)');
       }
 
+      const isOrphanNode = orphanNodeIdsRef.current.has(nodeData.id);
       g.append('rect')
         .attr('class', 'node-bg')
         .attr('width', initW).attr('height', NODE_H).attr('rx', 12)
         .attr('fill', ns.fill)
         .attr('stroke', ns.stroke)
-        .attr('stroke-width', ns.strokeWidth)
+        .attr('stroke-width', isOrphanNode ? 2.5 : ns.strokeWidth)
+        .attr('stroke-dasharray', isOrphanNode ? '7,4' : 'none')
         .attr('filter', ns.shadow !== 'none' ? 'url(#node-shadow)' : '');
 
       // Add blue tint if this node was just dropped
@@ -499,6 +499,15 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       let isDragging = false;
 
       g.on('mousedown', (event: MouseEvent) => {
+        // Right-click: open menu
+        if (event.button === 2) {
+          event.preventDefault();
+          event.stopPropagation();
+          const r = NODE_W;
+          onNodeMenuClickRef.current(nodeData, event.clientX + 8, event.clientY, event.clientX - NODE_W / 2, event.clientY - 30, r, 60);
+          return;
+        }
+
         if (event.button !== 0) return; // only left-click
         event.stopPropagation();
 
@@ -811,22 +820,96 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         }
       }
 
+      // ── Lock icon (top-left corner, visible in context mode) ──────────────
+      const lockGroup = g.append('g')
+        .attr('class', 'lock-icon-group')
+        .attr('data-id', nodeData.id)
+        .attr('opacity', 0)
+        .attr('pointer-events', 'none')
+        .attr('cursor', 'pointer');
+
+      // Hit area centered on the corner point (0,0)
+      lockGroup.append('rect')
+        .attr('class', 'lock-hit-area')
+        .attr('x', -10).attr('y', -10)
+        .attr('width', 26).attr('height', 26)
+        .attr('fill', 'transparent')
+        .attr('pointer-events', 'all');
+
+      // Icon centered on (0,0) — the corner — so it perches as a badge
+      // Lucide lock center is at (12,12) in the 24×24 viewbox; scale(0.8) → center at (9.6,9.6)
+      const lockIconSvg = lockGroup.append('g')
+        .attr('transform', 'translate(-9,-9) scale(0.8)')
+        .attr('pointer-events', 'none');
+
+      lockIconSvg.append('rect')
+        .attr('class', 'lock-body')
+        .attr('x', 3).attr('y', 11)
+        .attr('width', 18).attr('height', 11)
+        .attr('rx', 2)
+        .attr('fill', '#9CA3AF')
+        .attr('stroke', 'none');
+
+      lockIconSvg.append('path')
+        .attr('class', 'lock-shackle')
+        .attr('d', LOCK_SHACKLE_CLOSED)
+        .attr('fill', 'none')
+        .attr('stroke', '#9CA3AF')
+        .attr('stroke-width', 3)
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round');
+
+      lockGroup.on('mouseenter.lock', (event: MouseEvent) => {
+        event.stopPropagation();
+        const inCtx = activeContextNodeIdsRef.current.length > 0 || deactivatedNodeIdsRef.current.length > 0;
+        if (!inCtx) return;
+        const isLocked = lockedActiveIdsRef.current.includes(nodeData.id) ||
+                         lockedDeactivatedIdsRef.current.includes(nodeData.id);
+        if (!isLocked) {
+          lockGroup.attr('opacity', 0.55);
+          lockGroup.select('rect.lock-body').attr('fill', '#9CA3AF');
+          lockGroup.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_OPEN);
+        }
+      });
+
+      lockGroup.on('mouseleave.lock', () => {
+        const isLocked = lockedActiveIdsRef.current.includes(nodeData.id) ||
+                         lockedDeactivatedIdsRef.current.includes(nodeData.id);
+        if (!isLocked) {
+          lockGroup.attr('opacity', 0);
+          lockGroup.select('rect.lock-body').attr('fill', '#9CA3AF');
+          lockGroup.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
+        }
+      });
+
+      lockGroup.on('mousedown.lock', (event: MouseEvent) => {
+        event.stopPropagation(); // prevent reorder drag from starting
+      });
+
+      lockGroup.on('click.lock', (event: MouseEvent) => {
+        event.stopPropagation();
+        onToggleLockRef.current(nodeData.id);
+      });
+
       let clickTimer: ReturnType<typeof setTimeout> | null = null;
 
       g.on('click', (event: MouseEvent) => {
         event.stopPropagation();
+
+        if (event.ctrlKey || event.metaKey) {
+          if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+          onNodeCtrlClickRef.current(nodeData);
+          return;
+        }
+
         if (clickTimer !== null) {
           clearTimeout(clickTimer);
           clickTimer = null;
-          setNavigationTrigger('double-click');
           onNodeDoubleClickRef.current(nodeData.id);
         } else {
-          const isCtrl = event.ctrlKey || event.metaKey;
           clickTimer = setTimeout(() => {
             clickTimer = null;
-            setNavigationTrigger('single-click');
-            if (isCtrl) onNodeCtrlClickRef.current(nodeData);
-            else onNodeClickRef.current(nodeData);
+            onNodeClickRef.current(nodeData);
           }, 220);
           timers.push(clickTimer);
         }
@@ -854,11 +937,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
       d3.select(this).attr('opacity', ns.opacity);
 
+      const isOrphanNode = orphanNodeIdsRef.current.has(nodeId);
       const nodeBg = d3.select(this).select<SVGRectElement>('rect.node-bg');
       nodeBg
         .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill)
         .attr('stroke', isHovered ? 'rgb(217, 119, 6)' : ns.stroke)
-        .attr('stroke-width', isHovered ? 3 : ns.strokeWidth);
+        .attr('stroke-width', isHovered ? 5 : (isOrphanNode ? 5 : ns.strokeWidth))
+        .attr('stroke-dasharray', isOrphanNode ? '7,4' : 'none');
 
       d3.select(this).select<SVGRectElement>('rect.dot-menu-bg')
         .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill);
@@ -887,27 +972,41 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         .attr('stroke-width', es.strokeWidth)
         .attr('opacity', es.opacity);
     });
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, getNodeStyle, getEdgeStyle]);
 
-  // Effect 3: Handle navigation-triggered centering
-  useEffect(() => {
-    if (!activeNodeId || !navigationTrigger) return;
+    // Restyle lock icons
+    const inContextMode = activeContextNodeIds.length > 0 || deactivatedNodeIds.length > 0;
+    svg.selectAll<SVGGElement, unknown>('g.lock-icon-group').each(function() {
+      const el = d3.select(this);
+      const nodeId = el.attr('data-id');
+      if (!nodeId) return;
 
-    if (navigationTrigger === 'double-click') {
-      // Always center on double-click
-      centerOnNode(activeNodeId);
-      setNavigationTrigger(null);
-    } else if (navigationTrigger === 'arrow' || navigationTrigger === 'button') {
-      // Center only if node is not fully visible
-      if (!isNodeFullyVisible(activeNodeId)) {
-        centerOnNode(activeNodeId);
+      const isInContext = activeContextNodeIds.includes(nodeId) || deactivatedNodeIds.includes(nodeId);
+      if (!inContextMode || !isInContext) {
+        el.attr('opacity', 0).attr('pointer-events', 'none');
+        return;
       }
-      setNavigationTrigger(null);
-    } else if (navigationTrigger === 'single-click') {
-      // No centering on single click
-      setNavigationTrigger(null);
-    }
-  }, [activeNodeId, navigationTrigger, centerOnNode, isNodeFullyVisible, setNavigationTrigger]);
+
+      el.attr('pointer-events', 'all');
+
+      const isLockedActive = lockedActiveIds.includes(nodeId);
+      const isLockedDeactivated = lockedDeactivatedIds.includes(nodeId);
+
+      if (isLockedActive) {
+        el.attr('opacity', 1);
+        el.select('rect.lock-body').attr('fill', '#2563EB');
+        el.select('path.lock-shackle').attr('stroke', '#2563EB').attr('d', LOCK_SHACKLE_CLOSED);
+      } else if (isLockedDeactivated) {
+        el.attr('opacity', 1);
+        el.select('rect.lock-body').attr('fill', '#9CA3AF');
+        el.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
+      } else {
+        // Unlocked: reset, hide — hover handler reveals with open shackle
+        el.attr('opacity', 0);
+        el.select('rect.lock-body').attr('fill', '#9CA3AF');
+        el.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
+      }
+    });
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, lockedActiveIds, lockedDeactivatedIds, getNodeStyle, getEdgeStyle]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }} onContextMenu={e => e.preventDefault()}>

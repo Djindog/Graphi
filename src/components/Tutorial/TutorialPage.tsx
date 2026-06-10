@@ -114,7 +114,7 @@ function VisualCanvasInteraction() {
         { action: 'Long press + drag', result: 'Reorder siblings (200ms hold to enter drag mode)', color: '#374151' },
         { action: 'Right-click drag', result: 'Pan the canvas', color: '#374151' },
         { action: 'Scroll / pinch', result: 'Zoom in and out (0.15× – 4×)', color: '#374151' },
-        { action: 'Click background', result: 'Deselect current node', color: '#374151' },
+        { action: 'Click background', result: 'Center canvas on root node', color: '#374151' },
       ].map(item => (
         <div key={item.action} style={{ display: 'flex', gap: 10, fontSize: 13, alignItems: 'flex-start' }}>
           <span style={{ fontWeight: 600, color: item.color, minWidth: 140, flexShrink: 0 }}>{item.action}</span>
@@ -163,6 +163,7 @@ function VisualNodeTools() {
     { label: 'Fold / Unfold', desc: 'Collapse subtree' },
     { label: 'Remove (Keep Children)', desc: 'Delete node only', danger: true },
     { label: 'Delete Subtree', desc: 'Delete all descendants', danger: true },
+    { label: 'Orphan / Un-orphan', desc: 'Leaf only — detach from lineage', muted: true },
     { label: 'Transplant', desc: 'Copy to another project', muted: true },
   ];
   return (
@@ -177,7 +178,7 @@ function VisualNodeTools() {
       }}>
         {tools.map((t, i) => (
           <div key={t.label}>
-            {(i === 3 || i === 5) && <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />}
+            {(i === 3 || i === 5 || i === 6) && <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 12px', borderRadius: 9, fontSize: 12,
@@ -289,6 +290,66 @@ function VisualChips() {
   );
 }
 
+function LockSVG({ color, open = false }: { color: string; open?: boolean }) {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+      <rect x="3" y="11" width="18" height="11" rx="2" fill={color} />
+      <path
+        d={open ? 'M7 11V7a5 5 0 0 1 9.9-1' : 'M7 11V7a5 5 0 0 1 10 0v4'}
+        stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function VisualLocking() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 400 }}>
+      {/* Context bar mockup */}
+      <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: '12px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.10)' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginBottom: 9, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Context <span style={{ fontSize: 10, fontWeight: 500, color: '#D1D5DB' }}>(2/3)</span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
+          {/* locked active */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 999, border: '1px solid #2563EB', background: '#EFF6FF', fontSize: 12, fontWeight: 500, color: '#1D4ED8' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2563EB', flexShrink: 0 }} />
+            Project planning
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14 }}><LockSVG color="#2563EB" /></span>
+          </div>
+          {/* locked deactivated */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 999, border: '1px solid #D1D5DB', background: '#fff', fontSize: 12, fontWeight: 400, color: '#6B7280' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', border: '1.5px solid #D1D5DB', flexShrink: 0 }} />
+            FastAPI design
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14 }}><LockSVG color="#9CA3AF" /></span>
+          </div>
+          {/* normal active */}
+          <Chip label="Backend" active />
+          {/* lock-all button */}
+          <div style={{ width: 30, height: 30, borderRadius: 999, border: '1.5px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
+            <LockSVG color="#9CA3AF" />
+          </div>
+        </div>
+      </div>
+      {/* Legend */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#6B7280', alignItems: 'center' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, border: '1px solid #2563EB', background: '#EFF6FF', color: '#1D4ED8', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <LockSVG color="#2563EB" /><span>blue lock</span>
+          </span>
+          <span>Always included — survives navigation and context resets</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#6B7280', alignItems: 'center' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, border: '1px solid #D1D5DB', background: '#fff', color: '#9CA3AF', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <LockSVG color="#9CA3AF" /><span>gray lock</span>
+          </span>
+          <span>Always excluded — blocked even when grip or reference adds it</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VisualSiblingNav() {
   return (
     <div style={{ position: 'relative', width: 280, height: 180, flexShrink: 0 }}>
@@ -320,6 +381,46 @@ function VisualSiblingNav() {
       }}>+</div>
       <div style={{ position: 'absolute', left: -17, top: 'calc(50% + 28px)', fontSize: 10, color: '#6B7280', whiteSpace: 'nowrap' }}>prev sibling</div>
       <div style={{ position: 'absolute', right: -17, top: 'calc(50% + 28px)', fontSize: 10, color: '#6B7280', whiteSpace: 'nowrap', textAlign: 'right' }}>new sibling</div>
+    </div>
+  );
+}
+
+function OrphanNodeBox({ label }: { label: string }) {
+  return (
+    <div style={{
+      width: 168, height: 58, borderRadius: 12,
+      border: '2.5px dashed #E5E7EB',
+      background: '#fff',
+      boxShadow: '0 2px 6px rgba(17,24,39,0.08)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px',
+      fontSize: 13, fontWeight: 500, color: '#111827',
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    }}>{label}</div>
+  );
+}
+
+function VisualOrphan() {
+  return (
+    <div style={{ display: 'flex', gap: 48, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Normal node */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6 }}>Normal leaf</div>
+        <NodeBox label="Planning" />
+        <VLine height={14} />
+        <NodeBox label="Next steps" small />
+      </div>
+      {/* Orphan node */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6 }}>Orphan leaf</div>
+        <NodeBox label="Planning" dim />
+        <div style={{ height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 2, height: 14, background: 'transparent', borderLeft: '2px dashed #D1D5DB' }} />
+        </div>
+        <OrphanNodeBox label="Side thought" />
+        <div style={{ marginTop: 8, fontSize: 11, color: '#9CA3AF', textAlign: 'center' }}>
+          no lineage · dotted outline
+        </div>
+      </div>
     </div>
   );
 }
@@ -438,6 +539,7 @@ const FEATURES: Feature[] = [
           <Row label="Fold / Unfold" desc="Collapse or expand the subtree below this node. Folded nodes show a blue count badge." minW={180} />
           <Row label="Remove (Keep Children)" desc="Delete this node only — its children are reparented to this node's parent." danger minW={180} />
           <Row label="Delete Subtree" desc="Permanently delete this node and all descendants. A confirmation dialog appears first." danger minW={180} />
+          <Row label="Orphan / Un-orphan" desc="Leaf nodes only. Detaches the node from lineage — the AI sees no ancestors when chatting here. The node stays in the tree visually but gets a dotted outline and no connecting edge." minW={180} />
           <Row label="Transplant" desc="Copy this node and its subtree into a different project. A submenu lets you pick the target." minW={180} />
         </div>
         <TipBox style={{ marginTop: 16 }}>Hovering over <strong>Remove</strong> or <strong>Delete Subtree</strong> highlights the affected nodes in red on the canvas before you confirm.</TipBox>
@@ -509,6 +611,37 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    id: 'locking',
+    label: 'Locking Nodes',
+    visual: <VisualLocking />,
+    description: (
+      <>
+        <p>Locks pin a node's context state so it stays fixed regardless of navigation, grip suggestions, or context resets.</p>
+        <SectionLabel>Lock states</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <Row label="Blue lock" desc="Locked active — node is always included in the prompt, even after switching nodes and back." minW={100} />
+          <Row label="Gray lock" desc="Locked excluded — node is always blocked. Grip and reference detection won't re-add it." minW={100} />
+        </div>
+        <SectionLabel>How to lock</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0, marginTop: 5 }} />
+            <span>Hover a chip in the context panel — a lock icon appears on the right. Click it to lock the chip in its current state (active or excluded). Click again to unlock.</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0, marginTop: 5 }} />
+            <span>The <strong>lock-all button</strong> (padlock icon next to the ✕ button) locks every chip in the context bar at once. Click it again to unlock all.</span>
+          </div>
+        </div>
+        <SectionLabel>Canvas badge (Tree view)</SectionLabel>
+        <p style={{ fontSize: 14 }}>In tree view, locked nodes show a <strong>padlock badge</strong> at their top-left corner while context mode is active. Blue badge = locked active. Gray badge = locked excluded. Clicking the badge unlocks that node. Hovering the corner of an unlocked context node shows an open padlock — click to lock it.</p>
+        <SectionLabel>Per-node scope</SectionLabel>
+        <p style={{ fontSize: 14 }}>Locks are scoped to the <em>node you're composing in</em>. The same context node can be locked-active in one thread and locked-excluded in another. Locks persist across navigation for as long as the session is open.</p>
+        <TipBox>Use locks to keep a critical reference node always in context (blue) or to permanently suppress a noisy node from appearing via grip (gray), without having to click it away every time.</TipBox>
+      </>
+    ),
+  },
+  {
     id: 'sibling-nav',
     label: 'Sibling Navigation',
     visual: <VisualSiblingNav />,
@@ -537,10 +670,45 @@ const FEATURES: Feature[] = [
         <div style={{ width: '100%' }}>
           <ShortcutRow keys={['Ctrl', '↑']} description="Go to parent (saves current position to stack)" />
           <ShortcutRow keys={['Ctrl', '↓']} description="Return from stack, or go to first child" />
-          <ShortcutRow keys={['Ctrl', '←']} description="Go to previous sibling (or create one)" />
-          <ShortcutRow keys={['Ctrl', '→']} description="Go to next sibling (or create one)" />
+          <ShortcutRow keys={['Ctrl', '←']} description="Go to previous sibling (no-op if at leftmost)" />
+          <ShortcutRow keys={['Ctrl', '→']} description="Go to next sibling (no-op if at rightmost)" />
+          <ShortcutRow keys={['Ctrl', 'Shift', '←']} description="Create new sibling to the left of current" />
+          <ShortcutRow keys={['Ctrl', 'Shift', '→']} description="Create new sibling to the right of current" />
         </div>
-        <TipBox style={{ marginTop: 12 }}><strong>Ctrl+↑ then Ctrl+↓</strong> uses an internal stack: ↑ saves your position, then ↓ returns you there. Useful for quickly checking a parent and jumping back.</TipBox>
+        <TipBox style={{ marginTop: 12 }}><strong>Ctrl+↑ then Ctrl+↓</strong> uses an internal stack: ↑ saves your position, then ↓ returns you there. Useful for quickly checking a parent and jumping back. Use <strong>Ctrl+Shift+← / →</strong> to create new siblings at specific positions.</TipBox>
+      </>
+    ),
+  },
+  {
+    id: 'orphan',
+    label: 'Orphan Nodes',
+    visual: <VisualOrphan />,
+    description: (
+      <>
+        <p>An <strong>orphan</strong> is a leaf node that has been detached from its lineage. When you chat in an orphan, the AI receives <em>no ancestor context</em> — just the orphan's own thread. Use it for ephemeral side-thoughts that don't belong to any branch of reasoning.</p>
+        <SectionLabel>Visual cues</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <Row label="Dotted outline" desc="Thick dashed border distinguishes orphans from normal nodes at a glance." minW={150} />
+          <Row label="No edge" desc="The connecting line to the parent is not drawn — the node floats visually." minW={150} />
+        </div>
+        <SectionLabel>Behavior</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <Row label="No lineage" desc="Ancestor nodes are not included in context. Each reply is generated from the orphan's thread only." minW={150} />
+          <Row label="No branching" desc="Branch is hidden in the tool menu. Ctrl+Shift+↓ shows a toast instead of creating a child." minW={150} />
+          <Row label="Still searchable" desc="Orphans are indexed by grip and reference detection — other nodes can pull them into context." minW={150} />
+        </div>
+        <SectionLabel>How to orphan / un-orphan</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0, marginTop: 5 }} />
+            <span>Hover a <strong>leaf node</strong> → click <strong>···</strong> → <strong>Orphan</strong>. The option only appears for nodes with no children.</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0, marginTop: 5 }} />
+            <span>To restore lineage, open the same menu and click <strong>Un-orphan</strong>.</span>
+          </div>
+        </div>
+        <TipBox style={{ marginTop: 4 }}>Orphaning is reversible at any time. The node's parentId is preserved internally — un-orphaning re-draws the edge and restores full lineage context.</TipBox>
       </>
     ),
   },
@@ -587,7 +755,7 @@ export function TutorialPage({ onClose, onStartInteractive }: { onClose: () => v
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '18px 24px', borderBottom: '1px solid #F3F4F6', flexShrink: 0,
         }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>Tutorial</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>Help</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {onStartInteractive && (
               <button

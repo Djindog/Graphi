@@ -16,6 +16,7 @@ export interface Node {
   version: number;
   summary: string | null;
   embedding: number[] | null;
+  isOrphan?: boolean;
   createdAt: string;
   updatedAt: string;
 }
