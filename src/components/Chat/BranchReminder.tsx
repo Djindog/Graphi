@@ -38,6 +38,7 @@ export const BranchReminder: React.FC<GuidancePillProps> = ({
         justifyContent: 'center',
         padding: '0.75rem 1rem',
         gap: '1rem',
+        marginBottom: '8px'
       }}
     >
       <div

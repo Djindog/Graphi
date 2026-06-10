@@ -253,7 +253,8 @@ export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = outerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setShowBranchZone(e.clientY >= rect.bottom - 40);
+    const threshold = guidancePillVisible ? 130 : 50;
+    setShowBranchZone(e.clientY >= rect.bottom - threshold);
   };
 
   return (
@@ -375,7 +376,7 @@ export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
       {showScrollBtn && (
         <div style={{
           position: 'absolute',
-          bottom: 16,
+          bottom: 8,
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 20,
@@ -418,7 +419,7 @@ export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
       {showBranchZone && (
         <div style={{
           position: 'absolute',
-          bottom: 16,
+          bottom: 8,
           left: showScrollBtn ? 'calc(50% + 35px)' : '50%',
           transform: showScrollBtn ? 'none' : 'translateX(-50%)',
           zIndex: 20,
@@ -431,9 +432,9 @@ export const MessageList = forwardRef<{ scrollToBottom: () => void }, Props>(({
                 width: 34,
                 height: 34,
                 borderRadius: '50%',
-                border: '1.5px solid #2563EB',
-                background: '#F0F9FF',
-                color: '#2563EB',
+                border: guidancePillVisible ? '1.5px solid rgb(217, 119, 6)' : '1.5px solid #2563EB',
+                background: guidancePillVisible ? 'rgb(254, 243, 199)' : '#F0F9FF',
+                color: guidancePillVisible ? 'rgb(120, 53, 15)' : '#2563EB',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
