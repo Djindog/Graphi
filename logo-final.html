@@ -192,10 +192,18 @@
 
         <div class="control-group">
           <div class="control-label">
-            <label>Line Thickness</label>
-            <span class="control-value" id="thicknessValue">4</span>
+            <label>Endpoint Thickness</label>
+            <span class="control-value" id="endpointThicknessValue">4</span>
           </div>
-          <input type="range" id="thicknessSlider" min="1" max="20" value="4" step="0.5">
+          <input type="range" id="endpointThicknessSlider" min="1" max="20" value="4" step="0.5">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <label>Edge Thickness</label>
+            <span class="control-value" id="edgeThicknessValue">4</span>
+          </div>
+          <input type="range" id="edgeThicknessSlider" min="1" max="20" value="4" step="0.5">
         </div>
 
         <div class="control-group">
@@ -224,12 +232,14 @@
 
   <script>
     const curveSlider = document.getElementById('curveSlider');
-    const thicknessSlider = document.getElementById('thicknessSlider');
+    const endpointThicknessSlider = document.getElementById('endpointThicknessSlider');
+    const edgeThicknessSlider = document.getElementById('edgeThicknessSlider');
     const heightSlider = document.getElementById('heightSlider');
     const widthSlider = document.getElementById('widthSlider');
 
     const curveValue = document.getElementById('curveValue');
-    const thicknessValue = document.getElementById('thicknessValue');
+    const endpointThicknessValue = document.getElementById('endpointThicknessValue');
+    const edgeThicknessValue = document.getElementById('edgeThicknessValue');
     const heightValue = document.getElementById('heightValue');
     const widthValue = document.getElementById('widthValue');
 
@@ -241,13 +251,15 @@
 
     function updateLogo() {
       const curve = parseInt(curveSlider.value);
-      const thickness = parseFloat(thicknessSlider.value);
+      const endpointThickness = parseFloat(endpointThicknessSlider.value);
+      const edgeThickness = parseFloat(edgeThicknessSlider.value);
       const height = parseInt(heightSlider.value);
       const width = parseInt(widthSlider.value);
 
       // Update values display
       curveValue.textContent = curve;
-      thicknessValue.textContent = thickness.toFixed(1);
+      endpointThicknessValue.textContent = endpointThickness.toFixed(1);
+      edgeThicknessValue.textContent = edgeThickness.toFixed(1);
       heightValue.textContent = height;
       widthValue.textContent = width;
 
@@ -258,18 +270,18 @@
       const rightX = 200 + width / 2;
       const childY = rootY + height;
 
-      // Update nodes
+      // Update nodes with endpoint thickness
       rootNode.setAttribute('cx', rootX);
       rootNode.setAttribute('cy', rootY);
-      rootNode.setAttribute('r', thickness * 1.5);
+      rootNode.setAttribute('r', endpointThickness * 1.5);
 
       leftChild.setAttribute('cx', leftX);
       leftChild.setAttribute('cy', childY);
-      leftChild.setAttribute('r', thickness * 1.2);
+      leftChild.setAttribute('r', endpointThickness * 1.2);
 
       rightChild.setAttribute('cx', rightX);
       rightChild.setAttribute('cy', childY);
-      rightChild.setAttribute('r', thickness * 1.2);
+      rightChild.setAttribute('r', endpointThickness * 1.2);
 
       // Calculate control point offset (curve exaggeration)
       const controlOffset = curve;
@@ -279,15 +291,16 @@
       const rightPath = `M ${rootX} ${rootY} C ${rootX + controlOffset} ${rootY + height * 0.5}, ${rightX + controlOffset * 0.5} ${childY - height * 0.3}, ${rightX} ${childY}`;
 
       leftCurve.setAttribute('d', leftPath);
-      leftCurve.setAttribute('stroke-width', thickness);
+      leftCurve.setAttribute('stroke-width', edgeThickness);
 
       rightCurve.setAttribute('d', rightPath);
-      rightCurve.setAttribute('stroke-width', thickness);
+      rightCurve.setAttribute('stroke-width', edgeThickness);
     }
 
     function resetSliders() {
       curveSlider.value = 30;
-      thicknessSlider.value = 4;
+      endpointThicknessSlider.value = 4;
+      edgeThicknessSlider.value = 4;
       heightSlider.value = 140;
       widthSlider.value = 100;
       updateLogo();
@@ -313,7 +326,8 @@
 
     // Event listeners
     curveSlider.addEventListener('input', updateLogo);
-    thicknessSlider.addEventListener('input', updateLogo);
+    endpointThicknessSlider.addEventListener('input', updateLogo);
+    edgeThicknessSlider.addEventListener('input', updateLogo);
     heightSlider.addEventListener('input', updateLogo);
     widthSlider.addEventListener('input', updateLogo);
 
