@@ -62,7 +62,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   } = useChatStore();
 
   const { nodes, getAllAncestors, getNodesByProject, renameNode, getPrevSibling, getNextSibling, addNode, pushNavigationStack, popNavigationStack, getFirstChild } = useDagStore();
-  const { gripLevel, setGripLevel } = useGripStore();
+  const { setGripLevel } = useGripStore();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
