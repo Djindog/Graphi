@@ -3,17 +3,15 @@ import { useDagStore } from './dagStore';
 import { supabase } from '../lib/supabase';
 
 export type TutorialStepId =
-  | 'welcome' | 'create-project' | 'type-question' | 'wait-response'
-  | 'branch-from-menu' | 'type-branch-question' | 'wait-branch-response'
-  | 'auto-create-tree' | 'select-node-context' | 'ctrl-click-add'
+  | 'welcome' | 'create-project' | 'name-project' | 'type-question' | 'wait-response'
+  | 'branch-from-menu' | 'auto-create-tree' | 'select-node-context' | 'ctrl-click-add'
   | 'ctrl-click-remove' | 'deactivate-from-bar' | 'fold-node' | 'unfold-node'
   | 'cut-node' | 'delete-subtree' | 'undo-delete' | 'ctrl-arrow-up'
   | 'ctrl-arrow-down' | 'done';
 
 export const TUTORIAL_STEPS: TutorialStepId[] = [
-  'welcome', 'create-project', 'type-question', 'wait-response',
-  'branch-from-menu', 'type-branch-question', 'wait-branch-response',
-  'auto-create-tree', 'select-node-context', 'ctrl-click-add',
+  'welcome', 'create-project', 'name-project', 'type-question', 'wait-response',
+  'branch-from-menu', 'auto-create-tree', 'select-node-context', 'ctrl-click-add',
   'ctrl-click-remove', 'deactivate-from-bar', 'fold-node', 'unfold-node',
   'cut-node', 'delete-subtree', 'undo-delete', 'ctrl-arrow-up',
   'ctrl-arrow-down', 'done',
@@ -38,8 +36,8 @@ interface TutorialState {
   start: () => void;
   advance: () => void;
   back: () => void;
-  skip: () => void;
-  finish: () => void;
+  skip: () => Promise<void>;
+  finish: () => Promise<void>;
   advanceIfOnStep: (stepId: TutorialStepId) => void;
   setInputError: (err: string | null) => void;
   setNodeIds: (ids: Partial<TutorialNodeIds>) => void;
@@ -74,18 +72,20 @@ export const useTutorialStore = create<TutorialState>((set, get) => ({
     inputError: null,
   })),
 
-  skip: () => {
+  skip: async () => {
     const projectId = get().nodeIds.projectId;
     localStorage.setItem('graphi_tutorial_done', '1');
-    set({ isActive: false, currentStepIndex: 0, nodeIds: { ...emptyNodeIds } });
-    if (projectId) get().cleanupProject(projectId);
+    set({ nodeIds: { ...emptyNodeIds } });
+    if (projectId) await get().cleanupProject(projectId);
+    set({ isActive: false, currentStepIndex: 0 });
   },
 
-  finish: () => {
+  finish: async () => {
     const projectId = get().nodeIds.projectId;
     localStorage.setItem('graphi_tutorial_done', '1');
-    set({ isActive: false, currentStepIndex: 0, nodeIds: { ...emptyNodeIds } });
-    if (projectId) get().cleanupProject(projectId);
+    set({ nodeIds: { ...emptyNodeIds } });
+    if (projectId) await get().cleanupProject(projectId);
+    set({ isActive: false, currentStepIndex: 0 });
   },
 
   advanceIfOnStep: (stepId) => {

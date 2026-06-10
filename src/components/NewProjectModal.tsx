@@ -60,6 +60,7 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
           Project name
         </label>
         <input
+          data-tutorial="project-name-input"
           ref={nameRef}
           value={name}
           onChange={e => setName(e.target.value)}
@@ -110,6 +111,7 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
           >Cancel</button>
           <button
+            data-tutorial="create-project-btn"
             onClick={submit}
             disabled={creating}
             style={{

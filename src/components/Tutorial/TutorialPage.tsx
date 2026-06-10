@@ -567,7 +567,7 @@ const FEATURES: Feature[] = [
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function TutorialPage({ onClose, onStartInteractive }: { onClose: () => void; onStartInteractive?: () => void }) {
-  const [selectedId, setSelectedId] = useState('nodes');
+  const [selectedId, setSelectedId] = useState(FEATURES[0].id);
   const feature = FEATURES.find(f => f.id === selectedId) ?? FEATURES[0];
 
   return (

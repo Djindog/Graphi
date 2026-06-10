@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Pin, Pencil, Trash2, Settings, HelpCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useDagStore } from '../../stores/dagStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { NewProjectModal } from '../NewProjectModal';
 import { ConfirmDialog } from '../ConfirmDialog';
 import logoSvg from '../../assets/logo.svg';
@@ -185,7 +186,7 @@ export function Sidebar({
         <div style={{ padding: '0 12px 12px' }}>
           <button
             data-tutorial="new-project-btn"
-            onClick={() => setShowModal(true)}
+            onClick={() => { setShowModal(true); useTutorialStore.getState().advanceIfOnStep('create-project'); }}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 10px', fontSize: 13, fontWeight: 500, color: '#374151', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit' }}
             onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#2563EB'; b.style.color = '#1D4ED8'; b.style.background = '#EFF6FF'; }}
             onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#E5E7EB'; b.style.color = '#374151'; b.style.background = '#F9FAFB'; }}

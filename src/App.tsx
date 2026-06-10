@@ -214,7 +214,7 @@ export default function App() {
     if (tutStore.isActive) {
       localStorage.setItem(TUTORIAL_PROJECT_LS_KEY, project.id);
       tutStore.setNodeIds({ projectId: project.id, rootNodeId: project.rootNodeId });
-      tutStore.advanceIfOnStep('create-project');
+      tutStore.advanceIfOnStep('name-project');
     }
   };
 

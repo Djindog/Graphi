@@ -103,52 +103,101 @@ interface StepConfig {
   hint?: string;
   manualNext?: boolean;
   targetAttr?: string;
+  targetAttr2?: string;
   targetNodeKey?: keyof TutorialNodeIds;
   illustration?: React.ReactNode;
+  bottomCenter?: boolean; // force card to bottom-center regardless of ring position
 }
 
 const STEP_CONFIGS: StepConfig[] = [
   /* 0 welcome */
   { title: 'Welcome to Graphi!', body: 'Graphi is a tree-based thinking tool. You explore ideas through branching conversations, building a navigable thought tree. This short tutorial walks you through all the core features.', manualNext: true, illustration: <IllustTree /> },
   /* 1 create-project */
-  { title: 'Create your first project', body: 'Click the + New project button in the sidebar to get started.' , targetAttr: 'new-project-btn' },
-  /* 2 type-question */
+  { title: 'Create your first project', body: 'Click the + New project button in the sidebar to open the project dialog.', targetAttr: 'new-project-btn' },
+  /* 2 name-project */
+  { title: 'Name your project', body: 'Give your project a name, then click Create project. The name is optional — leave it blank and it\'ll be called "Untitled".', targetAttr: 'project-name-input', targetAttr2: 'create-project-btn' },
+  /* 3 type-question */
   { title: 'Ask your first question', body: 'Type the text below exactly in the chat input, then press Enter or click Send.', hint: '"What is Graphi?"', targetAttr: 'chat-input-area' },
-  /* 3 wait-response */
+  /* 4 wait-response */
   { title: 'Generating a response…', body: 'Graphi\'s AI is working on your answer. The response will stream in above.' },
-  /* 4 branch-from-menu */
-  { title: 'Create a branch', body: 'Hover the root node in the canvas to reveal its ··· menu button, then click it and select Branch. This creates a new conversation thread off the root.', targetNodeKey: 'rootNodeId' },
-  /* 5 type-branch-question */
-  { title: 'Ask in the branch', body: 'Type any question you want to explore in this branch, then send it.', targetAttr: 'chat-input-area' },
-  /* 6 wait-branch-response */
-  { title: 'Generating a response…', body: 'Graphi is responding to your branch question.' },
-  /* 7 auto-create-tree */
-  { title: 'Your tree is growing', body: "We've added a few more nodes to your tree to help you practice navigation and organization. Take a moment to look at the canvas.", manualNext: true, illustration: <IllustTree /> },
-  /* 8 select-node-context */
+  /* 5 branch-from-menu */
+  { title: 'Create a branch', body: 'Hover the root node in the canvas to reveal its ··· menu button, then click it and select Branch. This creates a new conversation thread off the root.', targetNodeKey: 'rootNodeId', targetAttr2: 'node-tool-overlay' },
+  /* 6 auto-create-tree */
+  { title: 'Branch created!', body: "Your branch is ready. Click Next and we'll automatically add a few more nodes to your tree so you can practice navigation and organization.", manualNext: true, illustration: <IllustTree /> },
+  /* 7 select-node-context */
   { title: 'Explore another node', body: 'Click on the "Context" node in the canvas to select it and open its thread.', targetNodeKey: 'autoSibling1Id' },
-  /* 9 ctrl-click-add */
-  { title: 'Add a node to context', body: 'Hold Ctrl and click the "Limitations" node in the canvas. This adds it to the active context so the AI can reference it.', targetNodeKey: 'autoLeafId', illustration: <IllustContext /> },
-  /* 10 ctrl-click-remove */
-  { title: 'Remove from context', body: 'Hold Ctrl and click the "Limitations" node again to deactivate it from the current context.', targetNodeKey: 'autoLeafId' },
-  /* 11 deactivate-from-bar */
+  /* 8 ctrl-click-add */
+  { title: 'Add a node to context', body: 'Hold Ctrl and click the "Limitations" node in the canvas. This adds it to the active context so the AI can reference it.', targetNodeKey: 'autoLeafId', illustration: <IllustContext />, bottomCenter: true },
+  /* 9 ctrl-click-remove */
+  { title: 'Remove from context', body: 'Hold Ctrl and click the "Limitations" node again to deactivate it from the current context.', targetNodeKey: 'autoLeafId', bottomCenter: true },
+  /* 10 deactivate-from-bar */
   { title: 'Deactivate via context bar', body: 'Click any blue chip in the Context bar above the chat input to temporarily deactivate that node.', targetAttr: 'context-bar' },
-  /* 12 fold-node */
-  { title: 'Fold a subtree', body: 'Hover the "Branch" node, open its ··· menu, and click Fold to collapse its children.', targetNodeKey: 'branch1NodeId' },
-  /* 13 unfold-node */
-  { title: 'Unfold it back', body: 'The "Branch" node is collapsed. Open its ··· menu and click Unfold to expand it again.', targetNodeKey: 'branch1NodeId' },
-  /* 14 cut-node */
-  { title: 'Remove a node (keep children)', body: 'Open the ··· menu on "Context control" and click Remove (Keep Children) to detach it while preserving its descendants.', targetNodeKey: 'autoSibling1ChildId' },
-  /* 15 delete-subtree */
-  { title: 'Delete a subtree', body: 'Open the ··· menu on "Limitations" and click Delete Subtree to remove it along with all its descendants.', targetNodeKey: 'autoLeafId' },
-  /* 16 undo-delete */
+  /* 11 fold-node */
+  { title: 'Fold a subtree', body: 'Hover the "Branch" node, open its ··· menu, and click Fold to collapse its children.', targetNodeKey: 'branch1NodeId', targetAttr2: 'node-tool-overlay' },
+  /* 12 unfold-node */
+  { title: 'Unfold it back', body: 'The "Branch" node is collapsed. Open its ··· menu and click Unfold to expand it again.', targetNodeKey: 'branch1NodeId', targetAttr2: 'node-tool-overlay' },
+  /* 13 cut-node */
+  { title: 'Remove a node (keep children)', body: 'Open the ··· menu on "Context control" and click Remove (Keep Children) to detach it while preserving its descendants.', targetNodeKey: 'autoSibling1ChildId', targetAttr2: 'node-tool-overlay' },
+  /* 14 delete-subtree */
+  { title: 'Delete a subtree', body: 'Open the ··· menu on "Limitations" and click Delete Subtree to remove it along with all its descendants.', targetNodeKey: 'autoLeafId', targetAttr2: 'node-tool-overlay' },
+  /* 15 undo-delete */
   { title: 'Undo with Ctrl+Z', body: 'Press Ctrl+Z to undo the deletion and restore the node. Graphi supports multi-level undo for node operations.', illustration: <IllustKey keys={['Ctrl', 'Z']} /> },
-  /* 17 ctrl-arrow-up */
+  /* 16 ctrl-arrow-up */
   { title: 'Navigate up the tree', body: 'Press Ctrl+↑ to navigate to the parent node. Your current position is saved to a stack so you can return.', illustration: <IllustKey keys={['Ctrl', '↑']} /> },
-  /* 18 ctrl-arrow-down */
+  /* 17 ctrl-arrow-down */
   { title: 'Navigate back down', body: 'Press Ctrl+↓ to pop the stack and return to your previous node. If the stack is empty, it jumps to the first child.', illustration: <IllustKey keys={['Ctrl', '↓']} /> },
-  /* 19 done */
+  /* 18 done */
   { title: "You're all set! 🎉", body: "You've learned the core features of Graphi: branching conversations, context management, tree navigation, and node operations. Start building your thought tree!", manualNext: true, illustration: <IllustTree /> },
 ];
+
+// ── Helper: compute smart card position ──────────────────────────────────────
+
+function computeCardPos(
+  ring1: DOMRect | null,
+  ring2: DOMRect | null,
+  cardWidth: number,
+  cardHeight: number,
+): React.CSSProperties {
+  const vwOuter = window.innerWidth;
+  if (!ring1 && !ring2) return { position: 'fixed', bottom: 32, left: (vwOuter - cardWidth) / 2 };
+
+  // Unified bounding box across both rings
+  const left   = Math.min(ring1?.left   ?? Infinity,  ring2?.left   ?? Infinity);
+  const right  = Math.max(ring1?.right  ?? -Infinity, ring2?.right  ?? -Infinity);
+  const top    = Math.min(ring1?.top    ?? Infinity,  ring2?.top    ?? Infinity);
+  const bottom = Math.max(ring1?.bottom ?? -Infinity, ring2?.bottom ?? -Infinity);
+  const cx = (left + right) / 2;
+  const cy = (top  + bottom) / 2;
+
+  const GAP    = 32;
+  const MARGIN = 12;
+  const vw = vwOuter;
+  const vh = window.innerHeight;
+
+  const spaceBelow = vh - bottom - GAP - MARGIN;
+  const spaceAbove = top      - GAP - MARGIN;
+  const spaceRight = vw - right  - GAP - MARGIN;
+  const spaceLeft  = left        - GAP - MARGIN;
+
+  const HORIZ_PENALTY = 0.2; // prefer above/below so card stays near target column
+  const candidates = [
+    { dir: 'below', key: spaceBelow,                     fits: spaceBelow >= cardHeight },
+    { dir: 'above', key: spaceAbove,                     fits: spaceAbove >= cardHeight },
+    { dir: 'right', key: spaceRight * (1-HORIZ_PENALTY), fits: spaceRight >= cardWidth  },
+    { dir: 'left',  key: spaceLeft  * (1-HORIZ_PENALTY), fits: spaceLeft  >= cardWidth  },
+  ].filter(c => c.fits).sort((a, b) => b.key - a.key);
+
+  const best = candidates[0];
+  if (!best) return { position: 'fixed', bottom: 32, left: (vw - cardWidth) / 2 };
+
+  const clampX = (l: number) => Math.max(MARGIN, Math.min(vw - cardWidth  - MARGIN, l));
+  const clampY = (t: number) => Math.max(MARGIN, Math.min(vh - cardHeight - MARGIN, t));
+
+  if (best.dir === 'below') return { position: 'fixed', top: bottom + GAP,          left: clampX(cx - cardWidth / 2) };
+  if (best.dir === 'above') return { position: 'fixed', top: top - GAP - cardHeight, left: clampX(cx - cardWidth / 2) };
+  if (best.dir === 'right') return { position: 'fixed', top: clampY(cy - cardHeight / 2), left: right + GAP };
+  /* left */                return { position: 'fixed', top: clampY(cy - cardHeight / 2), left: left - GAP - cardWidth };
+}
 
 // ── Helper: resolve target element from step config ───────────────────────────
 
@@ -175,6 +224,7 @@ export function TutorialOverlay() {
   const deactivatedNodeIds = useChatStore(s => s.deactivatedNodeIds);
   const isGenerating = useChatStore(s => s.isGenerating);
   const dagNodes = useDagStore(s => s.nodes);
+  const renameNode = useDagStore(s => s.renameNode);
   const foldedNodeIds = useFoldStore(s => s.foldedNodeIds);
 
   const step = TUTORIAL_STEPS[currentStepIndex];
@@ -182,14 +232,21 @@ export function TutorialOverlay() {
 
   const cardRef = useRef<HTMLDivElement>(null);
   const [ringRect, setRingRect] = useState<DOMRect | null>(null);
+  const [ringRect2, setRingRect2] = useState<DOMRect | null>(null);
+  const [cardHeight, setCardHeight] = useState(300);
+  const [isCreatingNodes, setIsCreatingNodes] = useState(false);
   const hasSeenGeneratingRef = useRef(false);
   const hadAutoLeafActiveRef = useRef(false);
   const entryDeactivatedLenRef = useRef(0);
   const wasFoldedRef = useRef(false);
+  const entryHadLeafInContextRef = useRef(false);
+  const entryFoldedRef = useRef(false);
+  const entryHadCutNodeRef = useRef(false);
+  const entryHadLeafNodeRef = useRef(false);
 
   // ── Ring positioning via RAF ──
   useEffect(() => {
-    if (!isActive) { setRingRect(null); return; }
+    if (!isActive) { setRingRect(null); setRingRect2(null); return; }
     let rafId: number;
     const update = () => {
       const el = getTargetElement(config, nodeIds);
@@ -201,40 +258,62 @@ export function TutorialOverlay() {
             Math.abs(prev.width - r.width) < 1 && Math.abs(prev.height - r.height) < 1) return prev;
         return r;
       });
+
+      const el2 = config.targetAttr2
+        ? document.querySelector(`[data-tutorial="${config.targetAttr2}"]`) : null;
+      const r2 = el2?.getBoundingClientRect() ?? null;
+      setRingRect2(prev => {
+        if (!r2 && !prev) return prev;
+        if (!r2 || !prev) return r2;
+        if (Math.abs(prev.left - r2.left) < 1 && Math.abs(prev.top - r2.top) < 1 &&
+            Math.abs(prev.width - r2.width) < 1 && Math.abs(prev.height - r2.height) < 1) return prev;
+        return r2;
+      });
+
+      if (cardRef.current) {
+        const h = cardRef.current.getBoundingClientRect().height;
+        if (h > 0) setCardHeight(prev => Math.abs(prev - h) > 1 ? h : prev);
+      }
+
       rafId = requestAnimationFrame(update);
     };
     rafId = requestAnimationFrame(update);
     return () => cancelAnimationFrame(rafId);
   }, [isActive, currentStepIndex, nodeIds, config]);
 
-  // ── Auto-create nodes on step 7 ──
-  useEffect(() => {
-    if (!isActive) return;
-    if (step === 'auto-create-tree') {
-      createAutoNodes();
-    }
-  }, [isActive, step, createAutoNodes]);
 
   // ── Track entry state for conditional detection ──
   useEffect(() => {
     if (!isActive) return;
+    if (step === 'ctrl-click-add') {
+      entryHadLeafInContextRef.current = nodeIds.autoLeafId ? activeContextNodeIds.includes(nodeIds.autoLeafId) : false;
+    }
     if (step === 'ctrl-click-remove') {
       hadAutoLeafActiveRef.current = nodeIds.autoLeafId ? activeContextNodeIds.includes(nodeIds.autoLeafId) : false;
     }
     if (step === 'deactivate-from-bar') {
       entryDeactivatedLenRef.current = deactivatedNodeIds.length;
     }
+    if (step === 'fold-node') {
+      entryFoldedRef.current = nodeIds.branch1NodeId ? foldedNodeIds.has(nodeIds.branch1NodeId) : false;
+    }
     if (step === 'unfold-node') {
       wasFoldedRef.current = nodeIds.branch1NodeId ? foldedNodeIds.has(nodeIds.branch1NodeId) : false;
     }
-    hasSeenGeneratingRef.current = false;
+    if (step === 'cut-node') {
+      entryHadCutNodeRef.current = !!dagNodes.find(n => n.id === nodeIds.autoSibling1ChildId);
+    }
+    if (step === 'delete-subtree') {
+      entryHadLeafNodeRef.current = !!dagNodes.find(n => n.id === nodeIds.autoLeafId);
+    }
+    hasSeenGeneratingRef.current = isGenerating;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, currentStepIndex]);
 
-  // ── Auto-advance: wait-response / wait-branch-response ──
+  // ── Auto-advance: wait-response ──
   useEffect(() => {
     if (!isActive) return;
-    if (step !== 'wait-response' && step !== 'wait-branch-response') return;
+    if (step !== 'wait-response') return;
     if (isGenerating) {
       hasSeenGeneratingRef.current = true;
     } else if (hasSeenGeneratingRef.current) {
@@ -251,9 +330,10 @@ export function TutorialOverlay() {
     const node = dagNodes.find(n => n.id === currentNodeId);
     if (node && node.parentId === nodeIds.rootNodeId && currentNodeId !== nodeIds.rootNodeId) {
       setNodeIds({ branch1NodeId: currentNodeId });
+      void renameNode(currentNodeId, 'Branch');
       advance();
     }
-  }, [isActive, step, currentNodeId, dagNodes, nodeIds.rootNodeId, advance, setNodeIds]);
+  }, [isActive, step, currentNodeId, dagNodes, nodeIds.rootNodeId, advance, setNodeIds, renameNode]);
 
   // ── Auto-advance: select-node-context ──
   useEffect(() => {
@@ -266,6 +346,7 @@ export function TutorialOverlay() {
   // ── Auto-advance: ctrl-click-add ──
   useEffect(() => {
     if (!isActive || step !== 'ctrl-click-add') return;
+    if (entryHadLeafInContextRef.current) return;
     if (nodeIds.autoLeafId && activeContextNodeIds.includes(nodeIds.autoLeafId)) {
       advance();
     }
@@ -291,6 +372,7 @@ export function TutorialOverlay() {
   // ── Auto-advance: fold-node ──
   useEffect(() => {
     if (!isActive || step !== 'fold-node') return;
+    if (entryFoldedRef.current) return;
     if (nodeIds.branch1NodeId && foldedNodeIds.has(nodeIds.branch1NodeId)) {
       advance();
     }
@@ -308,6 +390,7 @@ export function TutorialOverlay() {
   // ── Auto-advance: cut-node ──
   useEffect(() => {
     if (!isActive || step !== 'cut-node') return;
+    if (!entryHadCutNodeRef.current) return;
     if (nodeIds.autoSibling1ChildId && !dagNodes.find(n => n.id === nodeIds.autoSibling1ChildId)) {
       advance();
     }
@@ -316,6 +399,7 @@ export function TutorialOverlay() {
   // ── Auto-advance: delete-subtree ──
   useEffect(() => {
     if (!isActive || step !== 'delete-subtree') return;
+    if (!entryHadLeafNodeRef.current) return;
     if (nodeIds.autoLeafId && !dagNodes.find(n => n.id === nodeIds.autoLeafId)) {
       advance();
     }
@@ -338,6 +422,11 @@ export function TutorialOverlay() {
       case 'create-project': {
         const btn = document.querySelector('[data-tutorial="new-project-btn"]');
         if (btn) els.push(btn);
+        break;
+      }
+      case 'name-project': {
+        const modal = document.querySelector('[data-tutorial="new-project-modal"]');
+        if (modal) els.push(modal);
         break;
       }
       case 'type-question':
@@ -453,7 +542,7 @@ export function TutorialOverlay() {
   }, [isActive, step, getAllowedElements, advance]);
 
   // Blur focused element when step changes to a non-typing step, so input doesn't leak
-  const TYPING_STEPS = new Set(['type-question', 'type-branch-question']);
+  const TYPING_STEPS = new Set(['name-project', 'type-question', 'type-branch-question']);
   useEffect(() => {
     if (!isActive) return;
     if (!TYPING_STEPS.has(step)) {
@@ -469,6 +558,20 @@ export function TutorialOverlay() {
   const isWaiting = step === 'wait-response' || step === 'wait-branch-response';
   const showNext = !!config.manualNext;
   const ORANGE = '#F97316';
+
+  const handleNext = async () => {
+    if (step === 'auto-create-tree') {
+      setIsCreatingNodes(true);
+      await createAutoNodes();
+      setIsCreatingNodes(false);
+    }
+    advance();
+  };
+
+  const CARD_WIDTH = 360;
+  const cardStylePos: React.CSSProperties = config.bottomCenter
+    ? { position: 'fixed', bottom: 32, left: (window.innerWidth - CARD_WIDTH) / 2 }
+    : computeCardPos(ringRect, ringRect2, CARD_WIDTH, cardHeight);
 
   return (
     <>
@@ -506,15 +609,30 @@ export function TutorialOverlay() {
           }}
         />
       )}
+      {/* Second pulsing ring (targetAttr2) */}
+      {ringRect2 && (
+        <div
+          className="tut-ring"
+          style={{
+            position: 'fixed',
+            left: ringRect2.left - 4,
+            top: ringRect2.top - 4,
+            width: ringRect2.width + 8,
+            height: ringRect2.height + 8,
+            borderRadius: 14,
+            border: `2.5px solid ${ORANGE}`,
+            pointerEvents: 'none',
+            zIndex: 9994,
+          }}
+        />
+      )}
 
-      {/* Step card */}
+      {/* Step card — positioned to not overlap the highlighted target */}
       <div
         ref={cardRef}
         style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          width: 360,
+          ...cardStylePos,
+          width: CARD_WIDTH,
           background: '#fff',
           borderRadius: 16,
           boxShadow: '0 16px 48px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08)',
@@ -627,16 +745,19 @@ export function TutorialOverlay() {
 
             {showNext && !isDone && (
               <button
-                onClick={advance}
+                onClick={handleNext}
+                disabled={isCreatingNodes}
                 style={{
                   padding: '8px 20px', fontSize: 13, fontWeight: 600, borderRadius: 9,
                   border: 'none', background: ORANGE, color: '#fff',
-                  cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.12s',
+                  cursor: isCreatingNodes ? 'default' : 'pointer',
+                  fontFamily: 'inherit', transition: 'opacity 0.12s',
+                  opacity: isCreatingNodes ? 0.7 : 1,
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.88'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
+                onMouseEnter={e => { if (!isCreatingNodes) (e.currentTarget as HTMLButtonElement).style.opacity = '0.88'; }}
+                onMouseLeave={e => { if (!isCreatingNodes) (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
               >
-                Next →
+                {isCreatingNodes ? 'Building tree…' : 'Next →'}
               </button>
             )}
 

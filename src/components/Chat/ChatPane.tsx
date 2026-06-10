@@ -18,6 +18,21 @@ import type { Message } from '../../types';
 import type Groq from 'groq-sdk';
 
 const DEBOUNCE_MS = 2000;
+
+const TUTORIAL_WHAT_IS_GRAPHI =
+`Graphi is a tree-based thinking tool for exploratory conversations.
+
+Unlike a regular chat that flows in one long thread, Graphi lets you **branch** off at any point — creating separate conversation threads that share a common ancestor. Each **node** in the tree holds its own chat history.
+
+**Key concepts:**
+- **Root node** — your starting point. Every project begins here.
+- **Branches** — child nodes that let you explore a topic from a different angle without losing your original thread.
+- **Context** — you decide which nodes the AI can see when generating a response, so you can mix and match history across branches.
+
+This structure makes Graphi ideal for research, writing, brainstorming, and any task where you want to explore multiple directions without cluttering a single chat.
+
+The tutorial will now walk you through creating branches, managing context, and navigating your tree!`;
+
 const CHAT_SYSTEM_PROMPT =
   'You are a helpful thinking partner. Answer the latest user message, using context only as supporting material when it is relevant. Do not infer a task from context alone. If the latest user message is unclear, nonsensical, random characters, or has no interpretable request, say you cannot tell what they want and ask them to clarify.';
 
@@ -368,8 +383,45 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentNodeId, isGenerating, groqClient]);
 
+  const handleTutorialSend = async (userMessage: string) => {
+    if (!currentNodeId) return;
+    setIsGenerating(true);
+
+    const userMsg: Message = {
+      id: uuidv4(), nodeId: currentNodeId, role: 'user',
+      content: userMessage, createdAt: new Date().toISOString(),
+    };
+    addMessage(userMsg);
+
+    const assistantMsgId = uuidv4();
+    addMessage({ id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: '', createdAt: new Date().toISOString() });
+
+    // Simulate streaming: reveal ~5 chars every 15 ms
+    const response = TUTORIAL_WHAT_IS_GRAPHI;
+    const CHUNK = 5;
+    for (let i = CHUNK; i <= response.length; i += CHUNK) {
+      await new Promise(r => setTimeout(r, 15));
+      const partial = response.slice(0, i);
+      useChatStore.setState(s => ({
+        messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: partial } : m),
+      }));
+    }
+    useChatStore.setState(s => ({
+      messages: s.messages.map(m => m.id === assistantMsgId ? { ...m, content: response } : m),
+    }));
+
+    await supabase.from('messages').insert([
+      { id: userMsg.id, nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: userMsg.createdAt },
+      { id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: response, createdAt: new Date().toISOString() },
+    ]);
+    await renameNode(currentNodeId, 'What is Graphi?');
+
+    setIsGenerating(false);
+    partialClearContext();
+  };
+
   const handleSend = async () => {
-    if (!currentInput.trim() || !currentNodeId || isGenerating || !groqClient) return;
+    if (!currentInput.trim() || !currentNodeId || isGenerating) return;
     const userMessage = currentInput.trim();
 
     // Tutorial input validation
@@ -383,11 +435,14 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
         }
         tutStore.setInputError(null);
         tutStore.advance();
-      } else if (tutStep === 'type-branch-question') {
-        tutStore.setInputError(null);
-        tutStore.advance();
+        setCurrentInput('');
+        messageListRef.current?.scrollToBottom();
+        handleTutorialSend(userMessage);
+        return;
       }
     }
+
+    if (!groqClient) return;
 
     // Force Stage 0 to run immediately (clear debounce and execute)
     if (debounceRef.current) {
