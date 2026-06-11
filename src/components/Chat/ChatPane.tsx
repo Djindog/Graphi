@@ -514,6 +514,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
     const abort = new AbortController();
     abortRef.current = abort;
 
+    const previousMessages = useChatStore.getState().messages;
     const userMsg: Message = { id: uuidv4(), nodeId: currentNodeId, role: 'user', content: userMessage, createdAt: new Date().toISOString() };
     addMessage(userMsg);
 
@@ -541,7 +542,7 @@ export function ChatPane({ width = 320, groqClient, canvasHidden = false }: { wi
       ? `Latest user message:\n${userMessage}\n\nAvailable context, use only if relevant to the latest user message:\n${parts.join('\n\n')}`
       : userMessage;
 
-    const historyMsgs = lowIntentInput ? [] : useChatStore.getState().messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const historyMsgs = lowIntentInput ? [] : previousMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     const assistantMsgId = uuidv4();
     addMessage({ id: assistantMsgId, nodeId: currentNodeId, role: 'assistant', content: '', createdAt: new Date().toISOString() });

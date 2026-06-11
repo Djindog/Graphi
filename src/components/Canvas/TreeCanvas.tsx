@@ -24,6 +24,8 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
+  subtreeHighlightIds?: string[];
+  orphanPreviewId?: string | null;
   lockedActiveIds: string[];
   lockedDeactivatedIds: string[];
   foldedCountMap: Map<string, number>;
@@ -80,7 +82,7 @@ function wrapTitle(title: string): [string, string | null] {
   return [line1, line2 || null];
 }
 
-export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, lockedActiveIds, lockedDeactivatedIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick, onToggleLock }: Props) {
+export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, subtreeHighlightIds = [], orphanPreviewId = null, lockedActiveIds, lockedDeactivatedIds, foldedCountMap, hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick, onToggleLock }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const treeDataRef = useRef<{ nodes: Map<string, { x: number; y: number }>; width: number; height: number } | null>(null);
@@ -103,6 +105,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   const hoveredNodeIdRef = useRef(hoveredNodeId);
   const lockedActiveIdsRef = useRef(lockedActiveIds);
   const lockedDeactivatedIdsRef = useRef(lockedDeactivatedIds);
+  const subtreeHighlightIdsRef = useRef<string[]>(subtreeHighlightIds);
+  const orphanPreviewIdRef = useRef<string | null>(orphanPreviewId);
 
   // Stable refs for callbacks — prevents Effect 1 from re-running when Canvas re-renders
   const onNodeClickRef = useRef(onNodeClick);
@@ -122,6 +126,8 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
   hoveredNodeIdRef.current = hoveredNodeId;
   lockedActiveIdsRef.current = lockedActiveIds;
   lockedDeactivatedIdsRef.current = lockedDeactivatedIds;
+  subtreeHighlightIdsRef.current = subtreeHighlightIds;
+  orphanPreviewIdRef.current = orphanPreviewId;
   onNodeClickRef.current = onNodeClick;
   onNodeCtrlClickRef.current = onNodeCtrlClick;
   onNodeDoubleClickRef.current = onNodeDoubleClick;
@@ -142,8 +148,11 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
     const inContextMode = _activeContextNodeIds.length > 0 || _deactivatedNodeIds.length > 0;
     const inDanger = _dangerNodeIds.includes(nodeId);
 
-    if (inDanger)      return { stroke: '#FCA5A5', strokeWidth: 1.5, fill: '#FEF2F2', opacity: 1,    glow: false, textColor: '#EF4444', shadow: 'none' };
-    if (isSelected)    return { stroke: BLUE,      strokeWidth: 4,   fill: '#BFDBFE', opacity: 1,    glow: true,  textColor: '#1D4ED8', shadow: SHADOW_NODE };
+    const isSubtreeHighlight = subtreeHighlightIdsRef.current.includes(nodeId);
+
+    if (inDanger)           return { stroke: '#FCA5A5', strokeWidth: 1.5, fill: '#FEF2F2', opacity: 1,   glow: false, textColor: '#EF4444', shadow: 'none' };
+    if (isSubtreeHighlight) return { stroke: '#9CA3AF', strokeWidth: 2,   fill: '#F3F4F6', opacity: 1,   glow: false, textColor: '#374151', shadow: 'none' };
+    if (isSelected)         return { stroke: BLUE,      strokeWidth: 4,   fill: '#BFDBFE', opacity: 1,   glow: true,  textColor: '#1D4ED8', shadow: SHADOW_NODE };
     if (isActive)      return { stroke: BLUE,      strokeWidth: 1.5, fill: '#EFF6FF', opacity: 1,    glow: true,  textColor: '#1D4ED8', shadow: SHADOW_NODE };
     if (isDeactivated) return { stroke: BLUE_FADED,strokeWidth: 1,   fill: '#F9FAFB', opacity: 0.5,  glow: false, textColor: '#93C5FD', shadow: 'none' };
     if (inContextMode) return { stroke: GRAY,      strokeWidth: 1,   fill: '#FFFFFF', opacity: 0.4,  glow: false, textColor: '#9CA3AF', shadow: 'none' };
@@ -937,12 +946,13 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
 
       d3.select(this).attr('opacity', ns.opacity);
 
-      const isOrphanNode = orphanNodeIdsRef.current.has(nodeId);
+      const isOrphanPreview = nodeId === orphanPreviewIdRef.current && !orphanNodeIdsRef.current.has(nodeId);
+      const isOrphanNode = orphanNodeIdsRef.current.has(nodeId) || isOrphanPreview;
       const nodeBg = d3.select(this).select<SVGRectElement>('rect.node-bg');
       nodeBg
         .attr('fill', isHovered ? 'rgb(254, 243, 199)' : ns.fill)
         .attr('stroke', isHovered ? 'rgb(217, 119, 6)' : ns.stroke)
-        .attr('stroke-width', isHovered ? 5 : (isOrphanNode ? 5 : ns.strokeWidth))
+        .attr('stroke-width', isHovered ? 3 : (isOrphanNode ? 2.5 : ns.strokeWidth))
         .attr('stroke-dasharray', isOrphanNode ? '7,4' : 'none');
 
       d3.select(this).select<SVGRectElement>('rect.dot-menu-bg')
@@ -967,6 +977,10 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
       const srcId = el.attr('data-src');
       const tgtId = el.attr('data-tgt');
       if (!srcId || !tgtId) return;
+      if (tgtId === orphanPreviewIdRef.current && !orphanNodeIdsRef.current.has(tgtId)) {
+        el.attr('opacity', 0.08);
+        return;
+      }
       const es = getEdgeStyle(srcId, tgtId);
       el.attr('stroke', es.stroke)
         .attr('stroke-width', es.strokeWidth)
@@ -1006,7 +1020,7 @@ export function TreeCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiva
         el.select('path.lock-shackle').attr('stroke', '#9CA3AF').attr('d', LOCK_SHACKLE_CLOSED);
       }
     });
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, hoveredNodeId, lockedActiveIds, lockedDeactivatedIds, getNodeStyle, getEdgeStyle]);
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, subtreeHighlightIds, orphanPreviewId, hoveredNodeId, lockedActiveIds, lockedDeactivatedIds, getNodeStyle, getEdgeStyle]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }} onContextMenu={e => e.preventDefault()}>

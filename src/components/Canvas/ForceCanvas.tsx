@@ -9,6 +9,7 @@ interface Props {
   deactivatedNodeIds: string[];
   lineageNodeIds: string[];
   dangerNodeIds: string[];
+  subtreeHighlightIds?: string[];
   foldedCountMap: Map<string, number>;
   hoveredNodeId?: string | null;
   onNodeClick: (node: Node) => void;
@@ -55,7 +56,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: SimNode;
 }
 
-export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, foldedCountMap, hoveredNodeId: _hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
+export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, subtreeHighlightIds = [], foldedCountMap, hoveredNodeId: _hoveredNodeId, onNodeClick, onNodeCtrlClick, onNodeDoubleClick, onNodeMenuClick, onNodeBadgeClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
@@ -496,8 +497,12 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
       let glow = false;
       let textColor = '#6B7280';
 
+      const isSubtreeHighlight = subtreeHighlightIds.includes(nodeId);
+
       if (inDanger) {
         fill = '#FEF2F2'; stroke = '#FCA5A5'; strokeWidth = 2; opacity = 1; textColor = '#EF4444';
+      } else if (isSubtreeHighlight) {
+        fill = '#F3F4F6'; stroke = '#9CA3AF'; strokeWidth = 2; opacity = 1; textColor = '#374151';
       } else if (isSelected) {
         fill = '#EFF6FF'; stroke = BLUE; strokeWidth = 3.5; opacity = 1; glow = true; textColor = '#1D4ED8';
       } else if (isActive) {
@@ -551,7 +556,7 @@ export function ForceCanvas({ nodes, activeNodeId, activeContextNodeIds, deactiv
     svg.select('#arrowhead polygon')
       .attr('fill', GRAY);
 
-  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds]);
+  }, [activeNodeId, activeContextNodeIds, deactivatedNodeIds, lineageNodeIds, dangerNodeIds, subtreeHighlightIds]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }} onContextMenu={e => e.preventDefault()}>

@@ -12,26 +12,26 @@ interface Props {
   node: Node;
   position: { x: number; y: number };
   rootNodeId: string | null;
-  projects: Project[];
   isFolded: boolean;
   onFold: () => void;
   onUnfold: () => void;
   onClose: () => void;
   onBranch: (newNode: Node) => void;
   onDangerHover: (ids: string[]) => void;
+  onSubtreeHover: (ids: string[]) => void;
+  onOrphanHover: (id: string | null) => void;
   onRenameRequest: (node: Node) => void;
   onProjectCreated: (project: Project) => void;
 }
 
 
-export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onRenameRequest, onProjectCreated }: Props) {
+export function NodeToolOverlay({ node, position, rootNodeId, isFolded, onFold, onUnfold, onClose, onBranch, onDangerHover, onSubtreeHover, onOrphanHover, onRenameRequest, onProjectCreated }: Props) {
   const { addNode, deleteNode, deleteSubtree, getDescendants, getAllAncestors, nodes, pushUndoSnapshot, setOrphan } = useDagStore();
   const setCurrentNode = useChatStore(s => s.setCurrentNode);
   const currentNodeId = useChatStore(s => s.currentNodeId);
 
   const isLeaf = !nodes.some(n => n.parentId === node.id);
   const isOrphan = !!node.isOrphan;
-  const [transplantOpen, setTransplantOpen] = useState(false);
   const [newProjectModal, setNewProjectModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ action: 'prune' | null }>({ action: null });
   const ref = useRef<HTMLDivElement>(null);
@@ -84,28 +84,6 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
     onClose();
   };
 
-  const transplant = async (targetProjectId: string, rootNodeId?: string) => {
-    const allNodes = [node, ...getDescendants(node.id)];
-    const idMap = new Map<string, string>();
-    allNodes.forEach(n => idMap.set(n.id, uuidv4()));
-    const now = new Date().toISOString();
-    for (const n of allNodes) {
-      const isRoot = n.id === node.id;
-      await supabase.from('nodes').insert({
-        id: idMap.get(n.id)!,
-        projectId: targetProjectId,
-        title: n.title,
-        content: n.content,
-        parentId: isRoot ? (rootNodeId ?? null) : (idMap.get(n.parentId!) ?? null),
-        order: n.order,
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-    setTransplantOpen(false);
-    onClose();
-  };
 
   const transplantToNew = async (name: string, _description: string) => {
     const trimmed = name.trim() || 'Untitled';
@@ -138,7 +116,6 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
     await supabase.from('projects').update({ rootNodeId: newRootId }).eq('id', projectId);
     onProjectCreated({ id: projectId, name: trimmed, userId: user.id, rootNodeId: newRootId, createdAt: now });
     setNewProjectModal(false);
-    setTransplantOpen(false);
     onClose();
   };
 
@@ -158,49 +135,45 @@ export function NodeToolOverlay({ node, position, rootNodeId, projects, isFolded
         padding: 4, minWidth: 148,
       }}
     >
-      {transplantOpen ? (
-        <div>
-          <p style={{ color: '#9CA3AF', fontSize: 12, padding: '4px 8px 6px', margin: 0 }}>Copy to project:</p>
-          {projects.filter(p => p.id !== node.projectId).map(p => (
-            <Btn key={p.id} onClick={() => transplant(p.id)}>{p.name}</Btn>
-          ))}
-          <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
-          <Btn onClick={() => setNewProjectModal(true)} muted>New project</Btn>
-          <Btn onClick={() => setTransplantOpen(false)} muted>Cancel</Btn>
-        </div>
-      ) : (
-        <>
-          {!isOrphan && <Btn icon={<GitFork size={13} />} onClick={branch} dataTutorial="branch-btn">Branch</Btn>}
-          <Btn icon={<Pencil size={13} />} onClick={() => onRenameRequest(node)}>Rename</Btn>
-          {isFolded
-            ? <Btn icon={<Maximize2 size={13} />} onClick={onUnfold} dataTutorial="unfold-btn">Unfold</Btn>
-            : <Btn icon={<Minimize2 size={13} />} onClick={onFold} disabled={isRoot} dataTutorial="fold-btn">Fold</Btn>
-          }
-          <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
-          <Btn icon={<Scissors size={13} />} onClick={cut} disabled={isRoot} danger dataTutorial="cut-btn"
-            onMouseEnter={() => onDangerHover([node.id])}
-            onMouseLeave={() => onDangerHover([])}
-          >Remove (Keep Children)</Btn>
-          <Btn icon={<Trash2 size={13} />} onClick={prune} disabled={isRoot} danger dataTutorial="delete-subtree-btn"
-            onMouseEnter={() => onDangerHover([node.id, ...getDescendants(node.id).map(n => n.id)])}
-            onMouseLeave={() => onDangerHover([])}
-          >Delete Subtree</Btn>
-          {isLeaf && (
-            <>
-              <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
-              <Btn
-                icon={<Unlink size={13} />}
-                onClick={() => { setOrphan(node.id, !isOrphan); onClose(); }}
-                muted
-              >
-                {isOrphan ? 'Un-orphan' : 'Orphan'}
-              </Btn>
-            </>
-          )}
-          <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
-          <Btn icon={<ChevronRight size={13} />} onClick={() => setTransplantOpen(true)} muted>Transplant</Btn>
-        </>
-      )}
+      <>
+        {!isOrphan && <Btn icon={<GitFork size={13} />} onClick={branch} dataTutorial="branch-btn">Branch</Btn>}
+        <Btn icon={<Pencil size={13} />} onClick={() => onRenameRequest(node)}>Rename</Btn>
+        {isFolded
+          ? <Btn icon={<Maximize2 size={13} />} onClick={onUnfold} dataTutorial="unfold-btn">Unfold</Btn>
+          : <Btn icon={<Minimize2 size={13} />} onClick={onFold} disabled={isRoot} dataTutorial="fold-btn"
+              onMouseEnter={() => onSubtreeHover(getDescendants(node.id).map(n => n.id))}
+              onMouseLeave={() => onSubtreeHover([])}
+            >Fold</Btn>
+        }
+        <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
+        <Btn icon={<Scissors size={13} />} onClick={cut} disabled={isRoot} danger dataTutorial="cut-btn"
+          onMouseEnter={() => onDangerHover([node.id])}
+          onMouseLeave={() => onDangerHover([])}
+        >Remove (Keep Children)</Btn>
+        <Btn icon={<Trash2 size={13} />} onClick={prune} disabled={isRoot} danger dataTutorial="delete-subtree-btn"
+          onMouseEnter={() => onDangerHover([node.id, ...getDescendants(node.id).map(n => n.id)])}
+          onMouseLeave={() => onDangerHover([])}
+        >Delete Subtree</Btn>
+        {isLeaf && (
+          <>
+            <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
+            <Btn
+              icon={<Unlink size={13} />}
+              onClick={() => { setOrphan(node.id, !isOrphan); onClose(); }}
+              onMouseEnter={() => { if (!isOrphan) onOrphanHover(node.id); }}
+              onMouseLeave={() => onOrphanHover(null)}
+              muted
+            >
+              {isOrphan ? 'Un-orphan' : 'Orphan'}
+            </Btn>
+          </>
+        )}
+        <div style={{ height: 1, background: '#F3F4F6', margin: '3px 0' }} />
+        <Btn icon={<ChevronRight size={13} />} onClick={() => setNewProjectModal(true)} muted
+          onMouseEnter={() => onSubtreeHover([node.id, ...getDescendants(node.id).map(n => n.id)])}
+          onMouseLeave={() => onSubtreeHover([])}
+        >Transplant</Btn>
+      </>
     </div>
 
     {newProjectModal && (

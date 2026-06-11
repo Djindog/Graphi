@@ -14,7 +14,6 @@ import type { Node, Project } from '../../types';
 interface Props {
   nodes: Node[];
   rootNodeId: string | null;
-  projects: Project[];
   onProjectCreated: (project: Project) => void;
 }
 
@@ -27,7 +26,7 @@ interface RenameTarget {
   height: number;
 }
 
-export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props) {
+export function Canvas({ nodes, rootNodeId, onProjectCreated }: Props) {
   const { graphMode, setGraphMode } = useGraphStore();
   const { activeContextNodeIds, deactivatedNodeIds, lockedActiveIds, lockedDeactivatedIds, toggleNodeActive, toggleLock, setCurrentNode, setContextDisplay, toggleContextDisplay, contextDisplayMode, recommendedNodeIds, driftDetected, suggestedNodeId, messages, hoveredSuggestedNodeId } = useChatStore();
   const activeNodeId = useChatStore(s => s.currentNodeId);
@@ -58,6 +57,8 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
   const { foldedNodeIds, fold, unfold } = useFoldStore();
   const [overlay, setOverlay] = useState<{ node: Node; x: number; y: number; nodeScreenX: number; nodeScreenY: number; nodeWidth: number; nodeHeight: number } | null>(null);
   const [dangerNodeIds, setDangerNodeIds] = useState<string[]>([]);
+  const [subtreeHighlightIds, setSubtreeHighlightIds] = useState<string[]>([]);
+  const [orphanPreviewId, setOrphanPreviewId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameVal, setRenameVal] = useState('');
   const [ctrlToast, setCtrlToast] = useState(false);
@@ -232,7 +233,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
 
       {/* Toolbar */}
       <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
-        {/* Eye toggle — just icon, no box */}
+        {/* Eye toggle pill */}
         <Tooltip
           placement="bottom"
           width={200}
@@ -245,14 +246,21 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           <button
             onClick={toggleContextDisplay}
             style={{
-              width: 30, height: 30, border: 'none', cursor: 'pointer',
-              background: 'transparent',
-              color: contextDisplayMode ? '#2563EB' : '#6B7280',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'color 0.15s', borderRadius: 8,
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '0 10px', height: 30, border: '1px solid',
+              borderColor: contextDisplayMode ? '#BFDBFE' : '#E5E7EB',
+              borderRadius: 999, cursor: 'pointer',
+              background: contextDisplayMode ? '#EFF6FF' : '#fff',
+              color: contextDisplayMode ? '#2563EB' : '#9CA3AF',
+              fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
+              transition: 'all 0.15s', whiteSpace: 'nowrap',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
             }}
           >
-            {contextDisplayMode ? <Eye size={15} strokeWidth={2} /> : <EyeOff size={15} strokeWidth={2} />}
+            {contextDisplayMode
+              ? <Eye size={13} strokeWidth={2} />
+              : <EyeOff size={13} strokeWidth={2} />}
+            {contextDisplayMode ? 'Context Shown' : 'Context Hidden'}
           </button>
         </Tooltip>
 
@@ -412,6 +420,8 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           deactivatedNodeIds={contextDisplayMode ? deactivatedNodeIds : []}
           lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
+          subtreeHighlightIds={subtreeHighlightIds}
+          orphanPreviewId={orphanPreviewId}
           lockedActiveIds={contextDisplayMode ? lockedActiveIds : []}
           lockedDeactivatedIds={contextDisplayMode ? lockedDeactivatedIds : []}
           foldedCountMap={foldedCountMap}
@@ -432,6 +442,7 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           hoveredNodeId={hoveredSuggestedNodeId}
           lineageNodeIds={contextDisplayMode ? lineageNodeIds : []}
           dangerNodeIds={dangerNodeIds}
+          subtreeHighlightIds={subtreeHighlightIds}
           foldedCountMap={foldedCountMap}
           onNodeClick={handleNodeClick}
           onNodeCtrlClick={handleNodeCtrlClick}
@@ -446,13 +457,14 @@ export function Canvas({ nodes, rootNodeId, projects, onProjectCreated }: Props)
           node={overlay.node}
           position={{ x: overlay.x, y: overlay.y }}
           rootNodeId={rootNodeId}
-          projects={projects}
           isFolded={foldedNodeIds.has(overlay.node.id)}
           onFold={() => { fold(overlay.node.id); setOverlay(null); setDangerNodeIds([]); }}
           onUnfold={() => { unfold(overlay.node.id); setOverlay(null); setDangerNodeIds([]); }}
-          onClose={() => { setOverlay(null); setDangerNodeIds([]); }}
-          onBranch={() => { setOverlay(null); setDangerNodeIds([]); }}
+          onClose={() => { setOverlay(null); setDangerNodeIds([]); setSubtreeHighlightIds([]); setOrphanPreviewId(null); }}
+          onBranch={() => { setOverlay(null); setDangerNodeIds([]); setSubtreeHighlightIds([]); setOrphanPreviewId(null); }}
           onDangerHover={setDangerNodeIds}
+          onSubtreeHover={setSubtreeHighlightIds}
+          onOrphanHover={setOrphanPreviewId}
           onRenameRequest={handleRenameRequest}
           onProjectCreated={onProjectCreated}
         />

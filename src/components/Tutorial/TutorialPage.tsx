@@ -164,7 +164,7 @@ function VisualNodeTools() {
     { label: 'Remove (Keep Children)', desc: 'Delete node only', danger: true },
     { label: 'Delete Subtree', desc: 'Delete all descendants', danger: true },
     { label: 'Orphan / Un-orphan', desc: 'Leaf only — detach from lineage', muted: true },
-    { label: 'Transplant', desc: 'Copy to another project', muted: true },
+    { label: 'Transplant', desc: 'Copy to a new project', muted: true },
   ];
   return (
     <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', justifyContent: 'center' }}>
@@ -446,7 +446,7 @@ function VisualLayout() {
         </div>
         {/* Eye + Tree/Force toolbar */}
         <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4, alignItems: 'center' }}>
-          <div style={{ fontSize: 10, color: '#2563EB' }}>👁</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 999, background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB', fontSize: 8, fontWeight: 500 }}>👁 Shown</div>
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 7, padding: '2px 5px', fontSize: 9, color: '#111827', fontWeight: 600 }}>tree</div>
           <div style={{ background: 'transparent', borderRadius: 7, padding: '2px 5px', fontSize: 9, color: '#9CA3AF' }}>force</div>
         </div>
@@ -497,7 +497,7 @@ const FEATURES: Feature[] = [
         <p style={{ fontSize: 14 }}>Hovering a node expands it to show the full title and reveals the <strong>···</strong> dot menu button on the right side.</p>
         <SectionLabel>Canvas toolbar (top-right)</SectionLabel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Row label="👁 Eye button" desc="Toggle context highlighting on the canvas" minW={130} />
+          <Row label="Context Shown / Hidden" desc="Toggle context highlighting on the canvas — blue pill when active, gray when off" minW={160} />
           <Row label="tree / force" desc="Switch between hierarchical tree layout and physics-based force layout" minW={130} />
         </div>
         <TipBox>Hold the <strong>Ctrl</strong> key at any time to temporarily reveal context highlighting on the canvas — release to hide it again.</TipBox>
@@ -540,7 +540,7 @@ const FEATURES: Feature[] = [
           <Row label="Remove (Keep Children)" desc="Delete this node only — its children are reparented to this node's parent." danger minW={180} />
           <Row label="Delete Subtree" desc="Permanently delete this node and all descendants. A confirmation dialog appears first." danger minW={180} />
           <Row label="Orphan / Un-orphan" desc="Leaf nodes only. Detaches the node from lineage — the AI sees no ancestors when chatting here. The node stays in the tree visually but gets a dotted outline and no connecting edge." minW={180} />
-          <Row label="Transplant" desc="Copy this node and its subtree into a different project. A submenu lets you pick the target." minW={180} />
+          <Row label="Transplant" desc="Copy this node and its subtree into a new project. A dialog lets you name it." minW={180} />
         </div>
         <TipBox style={{ marginTop: 16 }}>Hovering over <strong>Remove</strong> or <strong>Delete Subtree</strong> highlights the affected nodes in red on the canvas before you confirm.</TipBox>
       </>
