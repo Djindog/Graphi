@@ -19,6 +19,7 @@ interface SidebarProps {
   onProjectCreated: (project: Project) => void;
   onProjectDeleted: (projectId: string) => void;
   onProjectRenamed: (projectId: string, name: string) => void;
+  onProjectPinToggled: (projectId: string, isPinned: boolean) => void;
   onError: (msg: string) => void;
   onOpenSettings: () => void;
   onOpenTutorial: () => void;
@@ -29,7 +30,7 @@ interface SidebarProps {
 
 export function Sidebar({
   collapsed, onToggle, activeProjectId, projects,
-  onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onError, onOpenSettings, onOpenTutorial,
+  onSelectProject, onProjectCreated, onProjectDeleted, onProjectRenamed, onProjectPinToggled, onError, onOpenSettings, onOpenTutorial,
   isTutorialActive = false, tutorialProjectId = null,
 }: SidebarProps) {
   const [showModal, setShowModal] = useState(false);
@@ -37,7 +38,6 @@ export function Sidebar({
   const [projectMenu, setProjectMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState('');
-  const [pinnedProjects, setPinnedProjects] = useState<Set<string>>(new Set());
   const [deleteConfirmProjectId, setDeleteConfirmProjectId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const addNode = useDagStore(s => s.addNode);
@@ -116,12 +116,13 @@ export function Sidebar({
     setRenamingProjectId(null);
   };
 
-  const handlePin = (projectId: string) => {
-    setPinnedProjects(prev => {
-      const next = new Set(prev);
-      if (next.has(projectId)) next.delete(projectId); else next.add(projectId);
-      return next;
-    });
+  const handlePin = async (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    const newPinned = !project.isPinned;
+    const { error } = await supabase.from('projects').update({ isPinned: newPinned }).eq('id', projectId);
+    if (error) { onError('Failed to update pin'); return; }
+    onProjectPinToggled(projectId, newPinned);
     setProjectMenu(null);
   };
 
@@ -140,8 +141,8 @@ export function Sidebar({
   const visibleProjects = isTutorialActive
     ? projects.filter(p => p.id === tutorialProjectId)
     : [
-        ...projects.filter(p => pinnedProjects.has(p.id)),
-        ...projects.filter(p => !pinnedProjects.has(p.id)),
+        ...projects.filter(p => p.isPinned),
+        ...projects.filter(p => !p.isPinned),
       ];
   const sortedProjects = visibleProjects;
 
@@ -246,7 +247,7 @@ export function Sidebar({
                 ) : (
                   <>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
-                      {pinnedProjects.has(p.id) && <Pin size={11} strokeWidth={2} color="#2563EB" style={{ flexShrink: 0 }} />}
+                      {p.isPinned && <Pin size={11} strokeWidth={2} color="#2563EB" style={{ flexShrink: 0 }} />}
                       {p.name}
                     </span>
                     <button
@@ -323,7 +324,7 @@ export function Sidebar({
           }}
         >
           <MenuBtn icon={<Pin size={13} />} onClick={() => handlePin(projectMenu.id)}>
-            {pinnedProjects.has(projectMenu.id) ? 'Unpin' : 'Pin'}
+            {projects.find(p => p.id === projectMenu.id)?.isPinned ? 'Unpin' : 'Pin'}
           </MenuBtn>
           <MenuBtn icon={<Pencil size={13} />} onClick={() => handleStartRename(projectMenu.id)}>
             Rename

@@ -4,6 +4,7 @@ export interface Project {
   userId: string;
   rootNodeId: string | null;
   createdAt: string;
+  isPinned?: boolean;
 }
 
 export interface Node {

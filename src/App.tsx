@@ -232,6 +232,10 @@ export default function App() {
     if (activeProject?.id === projectId) setActiveProject(prev => prev ? { ...prev, name } : prev);
   };
 
+  const handleProjectPinToggled = (projectId: string, isPinned: boolean) => {
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, isPinned } : p));
+  };
+
   const revealCanvas = useCallback(() => {
     setCanvasWidth(null);
     setChatPaneWidth(prev => clampChatWidth(prev, sidebarCollapsed));
@@ -418,6 +422,7 @@ export default function App() {
         onProjectCreated={handleProjectCreated}
         onProjectDeleted={handleProjectDeleted}
         onProjectRenamed={handleProjectRenamed}
+        onProjectPinToggled={handleProjectPinToggled}
         onError={msg => addToast(msg, 'error')}
         onOpenSettings={() => setShowSettingsKeyModal(true)}
         onOpenTutorial={() => setShowTutorial(true)}
@@ -468,7 +473,6 @@ export default function App() {
         <Canvas
           nodes={projectNodes}
           rootNodeId={activeProject?.rootNodeId ?? null}
-          projects={projects}
           onProjectCreated={handleProjectCreated}
         />
       </div>
